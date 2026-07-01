@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
 
+const statusActions = [
+  { label: "Approve", value: "approved" },
+  { label: "Assign", value: "assigned" },
+  { label: "Complete", value: "completed" },
+  { label: "Cancel", value: "cancelled" },
+];
+
 function RequestsListPage({ onNewRequest }) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("");
 
@@ -58,6 +66,70 @@ function RequestsListPage({ onNewRequest }) {
   // Stores the clicked request so its full details can be shown.
   const handleSelectRequest = (request) => {
     setSelectedRequest(request);
+  };
+
+  // Sends the new request status to the backend and updates the page immediately.
+  const handleStatusUpdate = async (requestId, newStatus) => {
+    setIsUpdatingStatus(true);
+    setStatusMessage("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/requests/${requestId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setStatusMessage(result.message || "Failed to update request status.");
+        setStatusType("error");
+        return;
+      }
+
+      setRequests((currentRequests) =>
+        currentRequests.map((request) =>
+          request.id === result.data.id ? result.data : request,
+        ),
+      );
+
+      setSelectedRequest(result.data);
+      setStatusMessage("Request status updated successfully.");
+      setStatusType("success");
+    } catch (error) {
+      console.error("Update status error:", error);
+      setStatusMessage("Could not connect to the FastTrans server.");
+      setStatusType("error");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Gives each request status a clear visual style.
+  const getStatusBadgeClass = (status) => {
+    if (status === "approved") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (status === "assigned") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "completed") {
+      return "bg-slate-100 text-slate-700";
+    }
+
+    if (status === "cancelled") {
+      return "bg-red-50 text-red-700";
+    }
+
+    return "bg-amber-50 text-amber-700";
   };
 
   // Filters requests by search text and selected status.
@@ -229,7 +301,11 @@ function RequestsListPage({ onNewRequest }) {
                           {request.pickupDate} at {request.pickupTime}
                         </td>
                         <td className="border-b border-slate-100 px-6 py-4">
-                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                              request.status,
+                            )}`}
+                          >
                             {request.status}
                           </span>
                         </td>
@@ -300,9 +376,35 @@ function RequestsListPage({ onNewRequest }) {
 
                   <div className="border-b border-slate-200 pb-4">
                     <p className="text-sm text-slate-600">Status</p>
-                    <span className="mt-2 inline-block rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <span
+                      className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                        activeRequest.status,
+                      )}`}
+                    >
                       {activeRequest.status}
                     </span>
+                  </div>
+
+                  <div className="border-b border-slate-200 pb-4">
+                    <p className="text-sm text-slate-600">Update Status</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {statusActions.map((action) => (
+                        <button
+                          key={action.value}
+                          type="button"
+                          disabled={
+                            isUpdatingStatus ||
+                            activeRequest.status === action.value
+                          }
+                          onClick={() =>
+                            handleStatusUpdate(activeRequest.id, action.value)
+                          }
+                          className="rounded-md border border-blue-700 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
