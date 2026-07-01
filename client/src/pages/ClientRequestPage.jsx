@@ -11,6 +11,8 @@ function ClientRequestPage() {
     instructions: "",
   });
 
+  const [errors, setErrors] = useState({});
+
   function handleChange(event) {
     const { name, value } = event.target;
 
@@ -18,10 +20,53 @@ function ClientRequestPage() {
       ...formData,
       [name]: value,
     });
+
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: "",
+      });
+    }
+  }
+
+  function validateForm() {
+    const newErrors = {};
+
+    if (!formData.pickupLocation.trim()) {
+      newErrors.pickupLocation = "Pickup location is required.";
+    }
+
+    if (!formData.destination.trim()) {
+      newErrors.destination = "Destination is required.";
+    }
+
+    if (!formData.weight) {
+      newErrors.weight = "Weight is required.";
+    } else if (Number(formData.weight) <= 0) {
+      newErrors.weight = "Weight must be greater than 0.";
+    }
+
+    if (!formData.pickupDate) {
+      newErrors.pickupDate = "Pickup date is required.";
+    }
+
+    if (!formData.pickupTime) {
+      newErrors.pickupTime = "Pickup time is required.";
+    }
+
+    return newErrors;
   }
 
   function handleSubmit(event) {
     event.preventDefault();
+
+    const validationErrors = validateForm();
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     console.log("Client request submitted:", formData);
     alert("Transport request captured successfully.");
   }
@@ -67,6 +112,11 @@ function ClientRequestPage() {
                   placeholder="Nairobi, Kenya"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
+                {errors.pickupLocation && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.pickupLocation}
+                  </p>
+                )}
               </label>
 
               <label className="block">
@@ -81,6 +131,11 @@ function ClientRequestPage() {
                   placeholder="Mombasa, Kenya"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
+                {errors.destination && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.destination}
+                  </p>
+                )}
               </label>
 
               <label className="block">
@@ -112,6 +167,9 @@ function ClientRequestPage() {
                   placeholder="500"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
+                {errors.weight && (
+                  <p className="mt-2 text-sm text-red-600">{errors.weight}</p>
+                )}
               </label>
 
               <label className="block">
@@ -125,6 +183,11 @@ function ClientRequestPage() {
                   type="date"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
+                {errors.pickupDate && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.pickupDate}
+                  </p>
+                )}
               </label>
 
               <label className="block">
@@ -138,6 +201,11 @@ function ClientRequestPage() {
                   type="time"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
+                {errors.pickupTime && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.pickupTime}
+                  </p>
+                )}
               </label>
             </div>
 
