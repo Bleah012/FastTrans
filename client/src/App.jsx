@@ -1,122 +1,79 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
-
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <main className="min-h-screen bg-slate-100 text-slate-900">
+      <section className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8">
+        <nav className="flex items-center justify-between border-b border-slate-200 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold text-blue-700">FastTrans</h1>
+            <p className="text-sm text-slate-500">
+              Transport Booking and Vehicle Scheduling System
+            </p>
+          </div>
 
-      <div className="ticks"></div>
+          <span className="rounded-md bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700">
+            Client Module First
+          </span>
+        </nav>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div className="grid flex-1 items-center gap-8 py-12 lg:grid-cols-2">
+          <div>
+            <p className="mb-3 text-sm font-semibold uppercase text-blue-700">
+              FastTrans Setup
+            </p>
+
+            <h2 className="mb-5 text-4xl font-bold leading-tight text-slate-950">
+              Manage transport requests, vehicle matching, offers, and
+              scheduling.
+            </h2>
+
+            <p className="mb-8 max-w-xl text-base leading-7 text-slate-600">
+              This project is being built with a React and Vite client, an
+              Express server, MongoDB, Mongoose, and GitHub version control.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <button className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-800">
+                Start Client Request
+              </button>
+
+              <button className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-white">
+                View Dashboard
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-5 text-lg font-semibold text-slate-950">
+              First Priority: Client Request Form
+            </h3>
+
+            <div className="space-y-4">
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="font-medium text-slate-900">Step 1: Route</p>
+                <p className="text-sm text-slate-500">
+                  Pickup location, destination, and route preview.
+                </p>
+              </div>
+
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="font-medium text-slate-900">Step 2: Package</p>
+                <p className="text-sm text-slate-500">
+                  Package type, size, weight, and handling options.
+                </p>
+              </div>
+
+              <div className="rounded-md border border-slate-200 p-4">
+                <p className="font-medium text-slate-900">Step 3: Schedule</p>
+                <p className="text-sm text-slate-500">
+                  Preferred pickup date, pickup time, and request submission.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    </main>
+  );
 }
 
-export default App
+export default App;
