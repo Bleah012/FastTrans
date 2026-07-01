@@ -2,10 +2,17 @@ const express = require("express");
 
 const router = express.Router();
 
-// Temporary in-memory storage for submitted transport requests.
+const allowedStatuses = [
+  "pending",
+  "approved",
+  "assigned",
+  "completed",
+  "cancelled",
+];
+
 const transportRequests = [];
 
-// This route receives a new client transport request.
+// Creates a new transport request and stores it temporarily in server memory.
 router.post("/", (req, res) => {
   const {
     pickupLocation,
@@ -26,7 +33,7 @@ router.post("/", (req, res) => {
   ) {
     return res.status(400).json({
       success: false,
-      message: "Please provide all required request details.",
+      message: "Pickup, destination, weight, date, and time are required.",
     });
   }
 
@@ -47,17 +54,50 @@ router.post("/", (req, res) => {
 
   return res.status(201).json({
     success: true,
-    message: "Transport request submitted successfully.",
+    message: "Transport request created successfully.",
     data: newRequest,
   });
 });
 
-// This route returns all submitted client transport requests.
+// Returns all transport requests currently stored in server memory.
 router.get("/", (req, res) => {
   return res.json({
     success: true,
     count: transportRequests.length,
     data: transportRequests,
+  });
+});
+
+// Updates the status of one transport request.
+router.patch("/:id/status", (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid request status.",
+    });
+  }
+
+  const request = transportRequests.find(
+    (transportRequest) => transportRequest.id === id,
+  );
+
+  if (!request) {
+    return res.status(404).json({
+      success: false,
+      message: "Transport request not found.",
+    });
+  }
+
+  request.status = status;
+  request.updatedAt = new Date().toISOString();
+
+  return res.json({
+    success: true,
+    message: "Transport request status updated successfully.",
+    data: request,
   });
 });
 
