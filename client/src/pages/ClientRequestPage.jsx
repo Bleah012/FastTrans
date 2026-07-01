@@ -1,4 +1,31 @@
+import { useState } from "react";
+
 function ClientRequestPage() {
+  const [formData, setFormData] = useState({
+    pickupLocation: "",
+    destination: "",
+    packageType: "General Goods",
+    weight: "",
+    pickupDate: "",
+    pickupTime: "",
+    instructions: "",
+  });
+
+  function handleChange(event) {
+    const { name, value } = event.target;
+
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    console.log("Client request submitted:", formData);
+    alert("Transport request captured successfully.");
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <section className="mx-auto max-w-6xl px-6 py-8">
@@ -14,7 +41,10 @@ function ClientRequestPage() {
         </nav>
 
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <form className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-slate-950">
                 Submit Transport Request
@@ -30,6 +60,9 @@ function ClientRequestPage() {
                   Pickup Location
                 </span>
                 <input
+                  name="pickupLocation"
+                  value={formData.pickupLocation}
+                  onChange={handleChange}
                   type="text"
                   placeholder="Nairobi, Kenya"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
@@ -41,6 +74,9 @@ function ClientRequestPage() {
                   Destination
                 </span>
                 <input
+                  name="destination"
+                  value={formData.destination}
+                  onChange={handleChange}
                   type="text"
                   placeholder="Mombasa, Kenya"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
@@ -51,7 +87,12 @@ function ClientRequestPage() {
                 <span className="mb-2 block text-sm font-medium text-slate-700">
                   Package Type
                 </span>
-                <select className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+                <select
+                  name="packageType"
+                  value={formData.packageType}
+                  onChange={handleChange}
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                >
                   <option>General Goods</option>
                   <option>Fragile Goods</option>
                   <option>Hazardous Materials</option>
@@ -64,6 +105,9 @@ function ClientRequestPage() {
                   Weight (kg)
                 </span>
                 <input
+                  name="weight"
+                  value={formData.weight}
+                  onChange={handleChange}
                   type="number"
                   placeholder="500"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
@@ -75,6 +119,9 @@ function ClientRequestPage() {
                   Pickup Date
                 </span>
                 <input
+                  name="pickupDate"
+                  value={formData.pickupDate}
+                  onChange={handleChange}
                   type="date"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
@@ -85,6 +132,9 @@ function ClientRequestPage() {
                   Pickup Time
                 </span>
                 <input
+                  name="pickupTime"
+                  value={formData.pickupTime}
+                  onChange={handleChange}
                   type="time"
                   className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
@@ -96,6 +146,9 @@ function ClientRequestPage() {
                 Special Instructions
               </span>
               <textarea
+                name="instructions"
+                value={formData.instructions}
+                onChange={handleChange}
                 rows="4"
                 placeholder="Add handling notes or delivery instructions"
                 className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
@@ -151,7 +204,8 @@ function ClientRequestPage() {
                 Route Preview
               </p>
               <div className="mt-3 flex h-40 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-sm text-slate-500">
-                Nairobi to Mombasa
+                {formData.pickupLocation || "Nairobi"} to{" "}
+                {formData.destination || "Mombasa"}
               </div>
             </div>
           </aside>
