@@ -18,6 +18,15 @@ function ClientRequestPage() {
   // errors stores validation messages for fields that are invalid.
   const [errors, setErrors] = useState({});
 
+  // isSubmitting controls the loading state of the submit button.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // statusMessage shows success or error messages inside the form.
+  const [statusMessage, setStatusMessage] = useState("");
+
+  // statusType decides whether the message is styled as success or error.
+  const [statusType, setStatusType] = useState("");
+
   // This runs once when the page opens.
   useEffect(() => {
     // Get the saved draft from the browser localStorage.
@@ -45,6 +54,12 @@ function ClientRequestPage() {
         ...errors,
         [name]: "",
       });
+    }
+
+    // Clear old status messages when the user edits the form.
+    if (statusMessage) {
+      setStatusMessage("");
+      setStatusType("");
     }
   }
 
@@ -99,6 +114,11 @@ function ClientRequestPage() {
       return;
     }
 
+    // Show loading state and clear old messages before sending.
+    setIsSubmitting(true);
+    setStatusMessage("");
+    setStatusType("");
+
     try {
       // Send the form data to the FastTrans backend API.
       const response = await fetch("http://localhost:5000/api/requests", {
@@ -114,7 +134,8 @@ function ClientRequestPage() {
 
       // If the server returns an error, show it to the user.
       if (!response.ok) {
-        alert(result.message || "Failed to submit request.");
+        setStatusMessage(result.message || "Failed to submit request.");
+        setStatusType("error");
         return;
       }
 
@@ -130,12 +151,17 @@ function ClientRequestPage() {
       // Clear any old validation errors.
       setErrors({});
 
-      // Notify the user that the request reached the server.
-      alert("Transport request submitted to server successfully.");
+      // Show a success message inside the form.
+      setStatusMessage("Transport request submitted to server successfully.");
+      setStatusType("success");
     } catch (error) {
       // Handle cases where the frontend cannot connect to the server.
       console.error("Submit request error:", error);
-      alert("Could not connect to the FastTrans server.");
+      setStatusMessage("Could not connect to the FastTrans server.");
+      setStatusType("error");
+    } finally {
+      // Always stop loading after the request finishes.
+      setIsSubmitting(false);
     }
   }
 
@@ -146,8 +172,9 @@ function ClientRequestPage() {
       JSON.stringify(formData),
     );
 
-    // Notify the user that the draft was saved.
-    alert("Draft saved successfully.");
+    // Show success message for saved draft.
+    setStatusMessage("Draft saved successfully.");
+    setStatusType("success");
   }
 
   function handleClearDraft() {
@@ -160,8 +187,9 @@ function ClientRequestPage() {
     // Clear all validation errors.
     setErrors({});
 
-    // Notify the user that the draft was cleared.
-    alert("Draft cleared successfully.");
+    // Show success message for cleared draft.
+    setStatusMessage("Draft cleared successfully.");
+    setStatusType("success");
   }
 
   return (
@@ -190,6 +218,18 @@ function ClientRequestPage() {
               <p className="mt-1 text-sm text-slate-500">
                 Enter trip, package, and schedule details.
               </p>
+
+              {statusMessage && (
+                <div
+                  className={`mt-4 rounded-md px-4 py-3 text-sm font-medium ${
+                    statusType === "success"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {statusMessage}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
@@ -319,9 +359,10 @@ function ClientRequestPage() {
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="submit"
-                className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+                disabled={isSubmitting}
+                className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-400"
               >
-                Submit Request
+                {isSubmitting ? "Submitting..." : "Submit Request"}
               </button>
 
               <button
