@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// This object keeps the default empty values for the form.
+// This object keeps the default empty values for the client request form.
 const emptyFormData = {
   pickupLocation: "",
   destination: "",
@@ -11,116 +11,85 @@ const emptyFormData = {
   instructions: "",
 };
 
-function ClientRequestPage() {
-  // formData stores all values typed or selected by the user.
+function ClientRequestPage({ onViewRequests }) {
   const [formData, setFormData] = useState(emptyFormData);
-
-  // errors stores validation messages for fields that are invalid.
   const [errors, setErrors] = useState({});
-
-  // isSubmitting controls the loading state of the submit button.
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // statusMessage shows success or error messages inside the form.
   const [statusMessage, setStatusMessage] = useState("");
-
-  // statusType decides whether the message is styled as success or error.
   const [statusType, setStatusType] = useState("");
 
-  // This runs once when the page opens.
+  // Loads a saved draft from local storage when the page first opens.
   useEffect(() => {
-    // Get the saved draft from the browser localStorage.
     const savedDraft = localStorage.getItem("fasttrans-client-request-draft");
 
-    // If a saved draft exists, load it back into the form.
     if (savedDraft) {
       setFormData(JSON.parse(savedDraft));
     }
   }, []);
 
-  function handleChange(event) {
-    // Get the input name and value from the field being edited.
+  // Updates form input values and clears errors as the user types.
+  const handleChange = (event) => {
     const { name, value } = event.target;
 
-    // Update only the changed field while keeping the rest of the form data.
-    setFormData({
-      ...formData,
+    setFormData((currentData) => ({
+      ...currentData,
       [name]: value,
-    });
+    }));
 
-    // If this field had an error, clear it once the user starts editing.
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: "",
-      });
-    }
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [name]: "",
+    }));
 
-    // Clear old status messages when the user edits the form.
     if (statusMessage) {
       setStatusMessage("");
       setStatusType("");
     }
-  }
+  };
 
-  function validateForm() {
-    // Create an empty object to collect validation errors.
+  // Checks required fields before the request is submitted.
+  const validateForm = () => {
     const newErrors = {};
 
-    // Check that pickup location is not empty.
     if (!formData.pickupLocation.trim()) {
       newErrors.pickupLocation = "Pickup location is required.";
     }
 
-    // Check that destination is not empty.
     if (!formData.destination.trim()) {
       newErrors.destination = "Destination is required.";
     }
 
-    // Check that weight is entered.
-    if (!formData.weight) {
-      newErrors.weight = "Weight is required.";
-    } else if (Number(formData.weight) <= 0) {
-      // Check that weight is greater than zero.
-      newErrors.weight = "Weight must be greater than 0.";
+    if (!formData.weight || Number(formData.weight) <= 0) {
+      newErrors.weight = "Enter a valid package weight.";
     }
 
-    // Check that pickup date is selected.
     if (!formData.pickupDate) {
       newErrors.pickupDate = "Pickup date is required.";
     }
 
-    // Check that pickup time is selected.
     if (!formData.pickupTime) {
       newErrors.pickupTime = "Pickup time is required.";
     }
 
-    // Return all validation errors found.
-    return newErrors;
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-  async function handleSubmit(event) {
-    // Stop the browser from refreshing the page.
+  // Sends the transport request to the Express backend API.
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    // Validate the form before submitting.
-    const validationErrors = validateForm();
-
-    // Store validation errors so they can be shown on the page.
-    setErrors(validationErrors);
-
-    // If there are errors, stop the submit process.
-    if (Object.keys(validationErrors).length > 0) {
+    if (!validateForm()) {
+      setStatusMessage("Please fix the highlighted fields before submitting.");
+      setStatusType("error");
       return;
     }
 
-    // Show loading state and clear old messages before sending.
     setIsSubmitting(true);
     setStatusMessage("");
     setStatusType("");
 
     try {
-      // Send the form data to the FastTrans backend API.
       const response = await fetch("http://localhost:5000/api/requests", {
         method: "POST",
         headers: {
@@ -129,93 +98,91 @@ function ClientRequestPage() {
         body: JSON.stringify(formData),
       });
 
-      // Read the JSON response from the server.
       const result = await response.json();
 
-      // If the server returns an error, show it to the user.
       if (!response.ok) {
         setStatusMessage(result.message || "Failed to submit request.");
         setStatusType("error");
         return;
       }
 
-      // Show the saved request in the browser console for testing.
-      console.log("Client request submitted:", result.data);
+      console.log("Saved request:", result.data);
 
-      // Remove the saved draft after successful submission.
       localStorage.removeItem("fasttrans-client-request-draft");
-
-      // Reset the form after successful submission.
       setFormData(emptyFormData);
-
-      // Clear any old validation errors.
       setErrors({});
-
-      // Show a success message inside the form.
       setStatusMessage("Transport request submitted to server successfully.");
       setStatusType("success");
     } catch (error) {
-      // Handle cases where the frontend cannot connect to the server.
       console.error("Submit request error:", error);
       setStatusMessage("Could not connect to the FastTrans server.");
       setStatusType("error");
     } finally {
-      // Always stop loading after the request finishes.
       setIsSubmitting(false);
     }
-  }
+  };
 
-  function handleSaveDraft() {
-    // Save the current form data in the browser localStorage.
+  // Saves the current form data in the browser so the user can continue later.
+  const handleSaveDraft = () => {
     localStorage.setItem(
       "fasttrans-client-request-draft",
       JSON.stringify(formData),
     );
 
-    // Show success message for saved draft.
     setStatusMessage("Draft saved successfully.");
     setStatusType("success");
-  }
+  };
 
-  function handleClearDraft() {
-    // Remove the saved draft from browser localStorage.
+  // Removes the saved draft and clears the form fields.
+  const handleClearDraft = () => {
     localStorage.removeItem("fasttrans-client-request-draft");
-
-    // Reset the form back to empty default values.
     setFormData(emptyFormData);
-
-    // Clear all validation errors.
     setErrors({});
-
-    // Show success message for cleared draft.
     setStatusMessage("Draft cleared successfully.");
     setStatusType("success");
-  }
+  };
+
+  // Clears the current form and prepares the page for a fresh request.
+  const handleNewRequest = () => {
+    setFormData(emptyFormData);
+    setErrors({});
+    setStatusMessage("");
+    setStatusType("");
+  };
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
-      <section className="mx-auto max-w-6xl px-6 py-8">
-        <nav className="mb-8 flex items-center justify-between border-b border-slate-200 pb-5">
+    <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-950">
+      <section className="mx-auto max-w-7xl">
+        <header className="mb-8 flex flex-col gap-4 border-b border-slate-300 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-blue-700">FastTrans</h1>
-            <p className="text-sm text-slate-500">Client Request Module</p>
+            <h1 className="text-3xl font-bold text-blue-700">FastTrans</h1>
+            <p className="text-slate-600">Client Request Module</p>
           </div>
 
-          <span className="rounded-md bg-blue-100 px-3 py-1 text-sm font-medium text-blue-700">
-            New Request
-          </span>
-        </nav>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onViewRequests}
+              className="rounded-md border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+            >
+              View Requests
+            </button>
 
-        <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-          >
+            <button
+              type="button"
+              onClick={handleNewRequest}
+              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              New Request
+            </button>
+          </div>
+        </header>
+
+        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-slate-950">
-                Submit Transport Request
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="text-2xl font-bold">Submit Transport Request</h2>
+              <p className="mt-1 text-slate-600">
                 Enter trip, package, and schedule details.
               </p>
 
@@ -232,191 +199,190 @@ function ClientRequestPage() {
               )}
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Pickup Location
-                </span>
-                <input
-                  name="pickupLocation"
-                  value={formData.pickupLocation}
-                  onChange={handleChange}
-                  type="text"
-                  placeholder="Nairobi, Kenya"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-                {errors.pickupLocation && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.pickupLocation}
-                  </p>
-                )}
-              </label>
+            <form onSubmit={handleSubmit} className="grid gap-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Pickup Location
+                  </label>
+                  <input
+                    type="text"
+                    name="pickupLocation"
+                    value={formData.pickupLocation}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Nairobi, Kenya"
+                  />
+                  {errors.pickupLocation && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {errors.pickupLocation}
+                    </p>
+                  )}
+                </div>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Destination
-                </span>
-                <input
-                  name="destination"
-                  value={formData.destination}
-                  onChange={handleChange}
-                  type="text"
-                  placeholder="Mombasa, Kenya"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-                {errors.destination && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.destination}
-                  </p>
-                )}
-              </label>
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Destination
+                  </label>
+                  <input
+                    type="text"
+                    name="destination"
+                    value={formData.destination}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Mombasa, Kenya"
+                  />
+                  {errors.destination && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {errors.destination}
+                    </p>
+                  )}
+                </div>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Package Type
-                </span>
-                <select
-                  name="packageType"
-                  value={formData.packageType}
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Package Type
+                  </label>
+                  <select
+                    name="packageType"
+                    value={formData.packageType}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  >
+                    <option>General Goods</option>
+                    <option>Perishable Goods</option>
+                    <option>Fragile Items</option>
+                    <option>Heavy Cargo</option>
+                    <option>Medical Supplies</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Weight (kg)
+                  </label>
+                  <input
+                    type="number"
+                    name="weight"
+                    value={formData.weight}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="25"
+                  />
+                  {errors.weight && (
+                    <p className="mt-2 text-sm text-red-600">{errors.weight}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Pickup Date
+                  </label>
+                  <input
+                    type="date"
+                    name="pickupDate"
+                    value={formData.pickupDate}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  />
+                  {errors.pickupDate && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {errors.pickupDate}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-800">
+                    Pickup Time
+                  </label>
+                  <input
+                    type="time"
+                    name="pickupTime"
+                    value={formData.pickupTime}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  />
+                  {errors.pickupTime && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {errors.pickupTime}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block font-semibold text-slate-800">
+                  Special Instructions
+                </label>
+                <textarea
+                  name="instructions"
+                  value={formData.instructions}
                   onChange={handleChange}
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  rows="5"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  placeholder="Handle carefully"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-400"
                 >
-                  <option>General Goods</option>
-                  <option>Fragile Goods</option>
-                  <option>Hazardous Materials</option>
-                  <option>Refrigerated Cargo</option>
-                </select>
-              </label>
+                  {isSubmitting ? "Submitting..." : "Submit Request"}
+                </button>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Weight (kg)
-                </span>
-                <input
-                  name="weight"
-                  value={formData.weight}
-                  onChange={handleChange}
-                  type="number"
-                  placeholder="500"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-                {errors.weight && (
-                  <p className="mt-2 text-sm text-red-600">{errors.weight}</p>
-                )}
-              </label>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  Save Draft
+                </button>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Pickup Date
-                </span>
-                <input
-                  name="pickupDate"
-                  value={formData.pickupDate}
-                  onChange={handleChange}
-                  type="date"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-                {errors.pickupDate && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.pickupDate}
-                  </p>
-                )}
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Pickup Time
-                </span>
-                <input
-                  name="pickupTime"
-                  value={formData.pickupTime}
-                  onChange={handleChange}
-                  type="time"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-                {errors.pickupTime && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.pickupTime}
-                  </p>
-                )}
-              </label>
-            </div>
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">
-                Special Instructions
-              </span>
-              <textarea
-                name="instructions"
-                value={formData.instructions}
-                onChange={handleChange}
-                rows="4"
-                placeholder="Add handling notes or delivery instructions"
-                className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-              />
-            </label>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-400"
-              >
-                {isSubmitting ? "Submitting..." : "Submit Request"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Save Draft
-              </button>
-
-              <button
-                type="button"
-                onClick={handleClearDraft}
-                className="rounded-md border border-red-200 px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
-              >
-                Clear Draft
-              </button>
-            </div>
-          </form>
+                <button
+                  type="button"
+                  onClick={handleClearDraft}
+                  className="rounded-md border border-red-300 px-5 py-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                >
+                  Clear Draft
+                </button>
+              </div>
+            </form>
+          </section>
 
           <aside className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-950">
-              Request Summary
-            </h3>
+            <h2 className="mb-6 text-2xl font-bold">Request Summary</h2>
 
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Estimated Distance</span>
-                <span className="font-medium text-slate-900">485 km</span>
+            <div className="space-y-5">
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <span className="text-slate-600">Estimated Distance</span>
+                <strong>485 km</strong>
               </div>
 
-              <div className="flex justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Estimated Duration</span>
-                <span className="font-medium text-slate-900">7h 20m</span>
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <span className="text-slate-600">Estimated Duration</span>
+                <strong>7h 20m</strong>
               </div>
 
-              <div className="flex justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Vehicle Match</span>
-                <span className="font-medium text-slate-900">Truck</span>
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <span className="text-slate-600">Vehicle Match</span>
+                <strong>Truck</strong>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-slate-500">Estimated Cost</span>
-                <span className="font-semibold text-blue-700">KES 7,867</span>
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <span className="text-slate-600">Estimated Cost</span>
+                <strong className="text-blue-700">KES 7,867</strong>
               </div>
             </div>
 
-            <div className="mt-6 rounded-md bg-slate-100 p-4">
-              <p className="text-sm font-medium text-slate-900">
-                Route Preview
-              </p>
-              <div className="mt-3 flex h-40 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-sm text-slate-500">
-                {formData.pickupLocation || "Nairobi"} to{" "}
-                {formData.destination || "Mombasa"}
+            <div className="mt-8 rounded-md bg-slate-100 p-5">
+              <h3 className="mb-4 font-bold">Route Preview</h3>
+              <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white p-4 text-center text-slate-600">
+                {formData.pickupLocation || "Pickup location"} to{" "}
+                {formData.destination || "Destination"}
               </div>
             </div>
           </aside>
