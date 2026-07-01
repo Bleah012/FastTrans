@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function ClientRequestPage() {
   const [formData, setFormData] = useState({
@@ -12,6 +12,14 @@ function ClientRequestPage() {
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const savedDraft = localStorage.getItem("fasttrans-client-request-draft");
+
+    if (savedDraft) {
+      setFormData(JSON.parse(savedDraft));
+    }
+  }, []);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -69,6 +77,15 @@ function ClientRequestPage() {
 
     console.log("Client request submitted:", formData);
     alert("Transport request captured successfully.");
+  }
+
+  function handleSaveDraft() {
+    localStorage.setItem(
+      "fasttrans-client-request-draft",
+      JSON.stringify(formData),
+    );
+
+    alert("Draft saved successfully.");
   }
 
   return (
@@ -233,6 +250,7 @@ function ClientRequestPage() {
 
               <button
                 type="button"
+                onClick={handleSaveDraft}
                 className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Save Draft
