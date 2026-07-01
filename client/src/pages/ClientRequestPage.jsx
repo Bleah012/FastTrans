@@ -84,7 +84,7 @@ function ClientRequestPage() {
     return newErrors;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     // Stop the browser from refreshing the page.
     event.preventDefault();
 
@@ -99,11 +99,44 @@ function ClientRequestPage() {
       return;
     }
 
-    // For now, show the submitted data in the browser console.
-    console.log("Client request submitted:", formData);
+    try {
+      // Send the form data to the FastTrans backend API.
+      const response = await fetch("http://localhost:5000/api/requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-    // Show the user that the request was captured.
-    alert("Transport request captured successfully.");
+      // Read the JSON response from the server.
+      const result = await response.json();
+
+      // If the server returns an error, show it to the user.
+      if (!response.ok) {
+        alert(result.message || "Failed to submit request.");
+        return;
+      }
+
+      // Show the saved request in the browser console for testing.
+      console.log("Client request submitted:", result.data);
+
+      // Remove the saved draft after successful submission.
+      localStorage.removeItem("fasttrans-client-request-draft");
+
+      // Reset the form after successful submission.
+      setFormData(emptyFormData);
+
+      // Clear any old validation errors.
+      setErrors({});
+
+      // Notify the user that the request reached the server.
+      alert("Transport request submitted to server successfully.");
+    } catch (error) {
+      // Handle cases where the frontend cannot connect to the server.
+      console.error("Submit request error:", error);
+      alert("Could not connect to the FastTrans server.");
+    }
   }
 
   function handleSaveDraft() {
