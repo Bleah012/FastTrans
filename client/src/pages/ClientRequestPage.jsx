@@ -1,34 +1,45 @@
 import { useEffect, useState } from "react";
 
-function ClientRequestPage() {
-  const [formData, setFormData] = useState({
-    pickupLocation: "",
-    destination: "",
-    packageType: "General Goods",
-    weight: "",
-    pickupDate: "",
-    pickupTime: "",
-    instructions: "",
-  });
+// This object keeps the default empty values for the form.
+const emptyFormData = {
+  pickupLocation: "",
+  destination: "",
+  packageType: "General Goods",
+  weight: "",
+  pickupDate: "",
+  pickupTime: "",
+  instructions: "",
+};
 
+function ClientRequestPage() {
+  // formData stores all values typed or selected by the user.
+  const [formData, setFormData] = useState(emptyFormData);
+
+  // errors stores validation messages for fields that are invalid.
   const [errors, setErrors] = useState({});
 
+  // This runs once when the page opens.
   useEffect(() => {
+    // Get the saved draft from the browser localStorage.
     const savedDraft = localStorage.getItem("fasttrans-client-request-draft");
 
+    // If a saved draft exists, load it back into the form.
     if (savedDraft) {
       setFormData(JSON.parse(savedDraft));
     }
   }, []);
 
   function handleChange(event) {
+    // Get the input name and value from the field being edited.
     const { name, value } = event.target;
 
+    // Update only the changed field while keeping the rest of the form data.
     setFormData({
       ...formData,
       [name]: value,
     });
 
+    // If this field had an error, clear it once the user starts editing.
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -38,54 +49,86 @@ function ClientRequestPage() {
   }
 
   function validateForm() {
+    // Create an empty object to collect validation errors.
     const newErrors = {};
 
+    // Check that pickup location is not empty.
     if (!formData.pickupLocation.trim()) {
       newErrors.pickupLocation = "Pickup location is required.";
     }
 
+    // Check that destination is not empty.
     if (!formData.destination.trim()) {
       newErrors.destination = "Destination is required.";
     }
 
+    // Check that weight is entered.
     if (!formData.weight) {
       newErrors.weight = "Weight is required.";
     } else if (Number(formData.weight) <= 0) {
+      // Check that weight is greater than zero.
       newErrors.weight = "Weight must be greater than 0.";
     }
 
+    // Check that pickup date is selected.
     if (!formData.pickupDate) {
       newErrors.pickupDate = "Pickup date is required.";
     }
 
+    // Check that pickup time is selected.
     if (!formData.pickupTime) {
       newErrors.pickupTime = "Pickup time is required.";
     }
 
+    // Return all validation errors found.
     return newErrors;
   }
 
   function handleSubmit(event) {
+    // Stop the browser from refreshing the page.
     event.preventDefault();
 
+    // Validate the form before submitting.
     const validationErrors = validateForm();
+
+    // Store validation errors so they can be shown on the page.
     setErrors(validationErrors);
 
+    // If there are errors, stop the submit process.
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
+    // For now, show the submitted data in the browser console.
     console.log("Client request submitted:", formData);
+
+    // Show the user that the request was captured.
     alert("Transport request captured successfully.");
   }
 
   function handleSaveDraft() {
+    // Save the current form data in the browser localStorage.
     localStorage.setItem(
       "fasttrans-client-request-draft",
       JSON.stringify(formData),
     );
 
+    // Notify the user that the draft was saved.
     alert("Draft saved successfully.");
+  }
+
+  function handleClearDraft() {
+    // Remove the saved draft from browser localStorage.
+    localStorage.removeItem("fasttrans-client-request-draft");
+
+    // Reset the form back to empty default values.
+    setFormData(emptyFormData);
+
+    // Clear all validation errors.
+    setErrors({});
+
+    // Notify the user that the draft was cleared.
+    alert("Draft cleared successfully.");
   }
 
   return (
@@ -254,6 +297,14 @@ function ClientRequestPage() {
                 className="rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Save Draft
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                className="rounded-md border border-red-200 px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+              >
+                Clear Draft
               </button>
             </div>
           </form>
