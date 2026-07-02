@@ -109,8 +109,35 @@ const updateRequestStatus = async (req, res) => {
   }
 };
 
+// Deletes a transport request from MongoDB.
+const deleteRequest = async (req, res) => {
+  try {
+    const request = await Request.findByIdAndDelete(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Transport request not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Transport request deleted successfully.",
+      data: request,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete transport request.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createRequest,
   getRequests,
   updateRequestStatus,
+  deleteRequest,
 };
