@@ -13,6 +13,7 @@ import RequestsListPage from "./pages/RequestsListPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import OfferClientReviewPage from "./pages/OfferClientReviewPage";
 import OfferManagementPage from "./pages/OfferManagementPage";
+import VehicleAvailabilityPage from "./pages/VehicleAvailabilityPage";
 
 function ClientRequestRoute() {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ function App() {
           <Route path="*" element={<NotFoundPage />} />
           <Route path="/offers" element={<OfferManagementPage />} />
           <Route path="/offers/review" element={<OfferClientReviewPage />} />
+          <Route path="/availability" element={<VehicleAvailabilityPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
