@@ -43,6 +43,16 @@ const requestSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform: (document, returnedObject) => {
+        returnedObject.id = returnedObject._id.toString();
+        return returnedObject;
+      },
+    },
+    toObject: {
+      virtuals: true,
+    },
   },
 );
 
