@@ -18,6 +18,9 @@ function AppLayout() {
           </div>
 
           <nav className="flex flex-wrap gap-2">
+            <NavLink to="/dashboard" className={linkClass}>
+              Dashboard
+            </NavLink>
             <NavLink to="/requests/new" className={linkClass}>
               New Request
             </NavLink>

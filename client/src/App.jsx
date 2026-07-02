@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import "./App.css";
 import AppLayout from "./components/AppLayout";
+import ClientDashboardPage from "./pages/ClientDashboardPage";
 import ClientRequestPage from "./pages/ClientRequestPage";
 import RequestsListPage from "./pages/RequestsListPage";
 
@@ -27,7 +28,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/requests/new" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<ClientDashboardPage />} />
           <Route path="/requests/new" element={<ClientRequestRoute />} />
           <Route path="/requests" element={<RequestsListRoute />} />
         </Route>
