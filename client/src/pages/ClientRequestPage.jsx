@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_ENDPOINTS } from "../config/api";
 
-// This object keeps the default empty values for the client request form.
 const emptyFormData = {
   pickupLocation: "",
   destination: "",
@@ -165,41 +164,39 @@ function ClientRequestPage({ onViewRequests }) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-950">
+    <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
-        <header className="mb-8 rounded-lg border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-                Client Request Module
-              </p>
-              <h1 className="mt-1 text-3xl font-bold text-slate-950">
-                FastTrans
-              </h1>
-              <p className="mt-1 text-slate-600">
-                Submit transport details and track client requests.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={onViewRequests}
-                className="rounded-md border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-              >
-                View Requests
-              </button>
-
-              <button
-                type="button"
-                onClick={handleNewRequest}
-                className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-              >
-                New Request
-              </button>
-            </div>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+              Client Request Module
+            </p>
+            <h2 className="mt-1 text-3xl font-bold">
+              Submit a New Transport Request
+            </h2>
+            <p className="mt-1 text-slate-600">
+              Capture route, package, and pickup schedule details.
+            </p>
           </div>
-        </header>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onViewRequests}
+              className="rounded-md border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+            >
+              View Requests
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNewRequest}
+              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              New Request
+            </button>
+          </div>
+        </div>
 
         {submittedRequest && (
           <section className="mb-8 rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
