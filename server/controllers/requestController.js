@@ -70,6 +70,31 @@ const getRequests = async (req, res) => {
   }
 };
 
+// Gets one transport request by ID from MongoDB.
+const getRequestById = async (req, res) => {
+  try {
+    const request = await Request.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Transport request not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch transport request.",
+      error: error.message,
+    });
+  }
+};
+
 // Updates the status of a transport request.
 const updateRequestStatus = async (req, res) => {
   try {
@@ -138,6 +163,7 @@ const deleteRequest = async (req, res) => {
 module.exports = {
   createRequest,
   getRequests,
+  getRequestById,
   updateRequestStatus,
   deleteRequest,
 };
