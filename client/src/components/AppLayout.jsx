@@ -36,6 +36,9 @@ function AppLayout() {
             <NavLink to="/availability" className={linkClass}>
               Availability
             </NavLink>
+            <NavLink to="/scheduling" className={linkClass}>
+              Scheduling
+            </NavLink>
           </nav>
         </div>
       </header>
