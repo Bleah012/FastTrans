@@ -10,6 +10,7 @@ import AppLayout from "./components/AppLayout";
 import ClientDashboardPage from "./pages/ClientDashboardPage";
 import ClientRequestPage from "./pages/ClientRequestPage";
 import RequestsListPage from "./pages/RequestsListPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function ClientRequestRoute() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ function App() {
           <Route path="/dashboard" element={<ClientDashboardPage />} />
           <Route path="/requests/new" element={<ClientRequestRoute />} />
           <Route path="/requests" element={<RequestsListRoute />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
