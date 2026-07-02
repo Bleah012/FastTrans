@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import AdminAreaNotice from "../components/AdminAreaNotice";
 import { API_ENDPOINTS } from "../config/api";
 
 const OFFERS_STORAGE_KEY = "fasttrans-generated-offers";
@@ -23,7 +24,8 @@ function OfferManagementPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("");
 
-  // Loads submitted transport requests so Amanda can generate offers from them.
+  const getRequestId = (request) => request.id || request._id;
+
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -54,7 +56,6 @@ function OfferManagementPage() {
     fetchRequests();
   }, []);
 
-  // Updates offer form inputs as Amanda edits the offer values.
   const handleOfferChange = (event) => {
     const { name, value } = event.target;
 
@@ -69,7 +70,6 @@ function OfferManagementPage() {
     }
   };
 
-  // Stores the selected client request for offer generation.
   const handleSelectRequest = (request) => {
     setSelectedRequest(request);
     setGeneratedOffer(null);
@@ -82,7 +82,6 @@ function OfferManagementPage() {
   const discount = Number(offerData.discount) || 0;
   const totalOfferAmount = Math.max(basePrice + tax - discount, 0);
 
-  // Creates an offer and saves it in localStorage for client review.
   const handleGenerateOffer = () => {
     if (!selectedRequest) {
       setStatusMessage("Select a client request before generating an offer.");
@@ -92,7 +91,7 @@ function OfferManagementPage() {
 
     const newOffer = {
       id: `OFFER-${Date.now()}`,
-      requestId: selectedRequest.id,
+      requestId: getRequestId(selectedRequest),
       request: {
         pickupLocation: selectedRequest.pickupLocation,
         destination: selectedRequest.destination,
@@ -134,6 +133,11 @@ function OfferManagementPage() {
   return (
     <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
+        <AdminAreaNotice
+          title="Offer Management Access"
+          description="Login as an admin or manager before generating, sending, or managing transport offers."
+        />
+
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
             Amanda Module
@@ -229,31 +233,38 @@ function OfferManagementPage() {
               </p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {requests.map((request) => (
-                  <button
-                    key={request.id}
-                    type="button"
-                    onClick={() => handleSelectRequest(request)}
-                    className={`block w-full px-6 py-4 text-left hover:bg-slate-50 ${
-                      selectedRequest?.id === request.id ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-semibold">
-                          {request.pickupLocation} to {request.destination}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {request.packageType} - {request.weight} kg
-                        </p>
-                      </div>
+                {requests.map((request) => {
+                  const requestId = getRequestId(request);
 
-                      <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                        {request.status}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+                  return (
+                    <button
+                      key={requestId}
+                      type="button"
+                      onClick={() => handleSelectRequest(request)}
+                      className={`block w-full px-6 py-4 text-left hover:bg-slate-50 ${
+                        selectedRequest &&
+                        getRequestId(selectedRequest) === requestId
+                          ? "bg-blue-50"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-semibold">
+                            {request.pickupLocation} to {request.destination}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {request.packageType} - {request.weight} kg
+                          </p>
+                        </div>
+
+                        <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          {request.status}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -289,102 +300,72 @@ function OfferManagementPage() {
                 )}
 
                 <div className="grid gap-6 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Base Price (KES)
-                    </label>
-                    <input
-                      type="number"
-                      name="basePrice"
-                      value={offerData.basePrice}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Tax (KES)
-                    </label>
-                    <input
-                      type="number"
-                      name="tax"
-                      value={offerData.tax}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Discount (KES)
-                    </label>
-                    <input
-                      type="number"
-                      name="discount"
-                      value={offerData.discount}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Vehicle Match
-                    </label>
-                    <select
-                      name="vehicleMatch"
-                      value={offerData.vehicleMatch}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    >
-                      <option>Truck</option>
-                      <option>Van</option>
-                      <option>Pickup</option>
-                      <option>Refrigerated Truck</option>
-                      <option>Heavy Cargo Trailer</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Estimated Distance (km)
-                    </label>
-                    <input
-                      type="number"
-                      name="estimatedDistance"
-                      value={offerData.estimatedDistance}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block font-semibold text-slate-800">
-                      Estimated Duration
-                    </label>
-                    <input
-                      type="text"
-                      name="estimatedDuration"
-                      value={offerData.estimatedDuration}
-                      onChange={handleOfferChange}
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Offer Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={offerData.notes}
+                  <input
+                    type="number"
+                    name="basePrice"
+                    value={offerData.basePrice}
                     onChange={handleOfferChange}
-                    rows="4"
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Base Price"
+                  />
+
+                  <input
+                    type="number"
+                    name="tax"
+                    value={offerData.tax}
+                    onChange={handleOfferChange}
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Tax"
+                  />
+
+                  <input
+                    type="number"
+                    name="discount"
+                    value={offerData.discount}
+                    onChange={handleOfferChange}
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Discount"
+                  />
+
+                  <select
+                    name="vehicleMatch"
+                    value={offerData.vehicleMatch}
+                    onChange={handleOfferChange}
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  >
+                    <option>Truck</option>
+                    <option>Van</option>
+                    <option>Pickup</option>
+                    <option>Refrigerated Truck</option>
+                    <option>Heavy Cargo Trailer</option>
+                  </select>
+
+                  <input
+                    type="number"
+                    name="estimatedDistance"
+                    value={offerData.estimatedDistance}
+                    onChange={handleOfferChange}
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Estimated Distance"
+                  />
+
+                  <input
+                    type="text"
+                    name="estimatedDuration"
+                    value={offerData.estimatedDuration}
+                    onChange={handleOfferChange}
+                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    placeholder="Estimated Duration"
                   />
                 </div>
+
+                <textarea
+                  name="notes"
+                  value={offerData.notes}
+                  onChange={handleOfferChange}
+                  rows="4"
+                  className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                />
 
                 <div className="border-t border-slate-200 pt-6">
                   <button
@@ -415,43 +396,27 @@ function OfferManagementPage() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Base Price</p>
-                    <p className="font-semibold">
-                      KES {basePrice.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Tax</p>
-                    <p className="font-semibold">KES {tax.toLocaleString()}</p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Discount</p>
-                    <p className="font-semibold">
-                      KES {discount.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Vehicle</p>
-                    <p className="font-semibold">{offerData.vehicleMatch}</p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Distance</p>
-                    <p className="font-semibold">
-                      {offerData.estimatedDistance} km
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Duration</p>
-                    <p className="font-semibold">
-                      {offerData.estimatedDuration}
-                    </p>
-                  </div>
+                  <PreviewItem
+                    label="Base Price"
+                    value={`KES ${basePrice.toLocaleString()}`}
+                  />
+                  <PreviewItem
+                    label="Tax"
+                    value={`KES ${tax.toLocaleString()}`}
+                  />
+                  <PreviewItem
+                    label="Discount"
+                    value={`KES ${discount.toLocaleString()}`}
+                  />
+                  <PreviewItem label="Vehicle" value={offerData.vehicleMatch} />
+                  <PreviewItem
+                    label="Distance"
+                    value={`${offerData.estimatedDistance} km`}
+                  />
+                  <PreviewItem
+                    label="Duration"
+                    value={offerData.estimatedDuration}
+                  />
                 </div>
 
                 <div className="rounded-md border border-slate-200 p-4">
@@ -464,6 +429,15 @@ function OfferManagementPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function PreviewItem({ label, value }) {
+  return (
+    <div className="rounded-md bg-slate-50 p-4">
+      <p className="text-sm text-slate-600">{label}</p>
+      <p className="font-semibold">{value}</p>
+    </div>
   );
 }
 

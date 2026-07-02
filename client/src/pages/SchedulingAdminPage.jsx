@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AdminAreaNotice from "../components/AdminAreaNotice";
 
 const bookingStorageKey = "fasttrans-vehicle-bookings";
 const scheduleStorageKey = "fasttrans-confirmed-schedules";
@@ -272,6 +273,11 @@ function SchedulingAdminPage() {
   return (
     <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
+        <AdminAreaNotice
+          title="Scheduling Admin Access"
+          description="Login as an admin or manager before managing confirmed bookings and vehicle schedules."
+        />
+
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
             Elvis Module

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AdminAreaNotice from "../components/AdminAreaNotice";
 
 const defaultRouteData = {
   pickupLocation: "Nairobi, Kenya",
@@ -281,6 +282,11 @@ function VehicleAvailabilityPage() {
   return (
     <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
+        <AdminAreaNotice
+          title="Vehicle Availability Access"
+          description="Login as an admin or manager before assigning vehicles or changing availability decisions."
+        />
+
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
             Nathaniel Module
