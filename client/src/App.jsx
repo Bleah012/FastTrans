@@ -1,25 +1,35 @@
-import { useState } from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 import "./App.css";
 import ClientRequestPage from "./pages/ClientRequestPage";
 import RequestsListPage from "./pages/RequestsListPage";
 
+function ClientRequestRoute() {
+  const navigate = useNavigate();
+
+  return <ClientRequestPage onViewRequests={() => navigate("/requests")} />;
+}
+
+function RequestsListRoute() {
+  const navigate = useNavigate();
+
+  return <RequestsListPage onNewRequest={() => navigate("/requests/new")} />;
+}
+
 function App() {
-  const [activePage, setActivePage] = useState("request");
-
-  // Shows the client request form page.
-  const showRequestPage = () => {
-    setActivePage("request");
-  };
-
-  // Shows the submitted requests list page.
-  const showRequestsListPage = () => {
-    setActivePage("requests");
-  };
-
-  return activePage === "request" ? (
-    <ClientRequestPage onViewRequests={showRequestsListPage} />
-  ) : (
-    <RequestsListPage onNewRequest={showRequestPage} />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/requests/new" replace />} />
+        <Route path="/requests/new" element={<ClientRequestRoute />} />
+        <Route path="/requests" element={<RequestsListRoute />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
