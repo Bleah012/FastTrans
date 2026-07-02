@@ -11,6 +11,8 @@ import ClientDashboardPage from "./pages/ClientDashboardPage";
 import ClientRequestPage from "./pages/ClientRequestPage";
 import RequestsListPage from "./pages/RequestsListPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import OfferClientReviewPage from "./pages/OfferClientReviewPage";
+import OfferManagementPage from "./pages/OfferManagementPage";
 
 function ClientRequestRoute() {
   const navigate = useNavigate();
@@ -34,6 +36,8 @@ function App() {
           <Route path="/requests/new" element={<ClientRequestRoute />} />
           <Route path="/requests" element={<RequestsListRoute />} />
           <Route path="*" element={<NotFoundPage />} />
+          <Route path="/offers" element={<OfferManagementPage />} />
+          <Route path="/offers/review" element={<OfferClientReviewPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

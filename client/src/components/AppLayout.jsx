@@ -27,6 +27,12 @@ function AppLayout() {
             <NavLink to="/requests" className={linkClass}>
               Request Records
             </NavLink>
+            <NavLink to="/offers" className={linkClass}>
+              Offers
+            </NavLink>
+            <NavLink to="/offers/review" className={linkClass}>
+              Offer Review
+            </NavLink>
           </nav>
         </div>
       </header>
