@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_ENDPOINTS } from "../config/api";
 
 // This object keeps the default empty values for the client request form.
 const emptyFormData = {
@@ -98,7 +99,7 @@ function ClientRequestPage({ onViewRequests }) {
     setStatusType("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/requests", {
+      const response = await fetch(API_ENDPOINTS.requests, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_ENDPOINTS } from "../config/api";
 
 const statusActions = [
   { label: "Approve", value: "approved" },
@@ -32,7 +33,7 @@ function RequestsListPage({ onNewRequest }) {
     setStatusMessage("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/requests");
+      const response = await fetch(API_ENDPOINTS.requests);
       const result = await response.json();
 
       if (!response.ok) {
@@ -83,16 +84,13 @@ function RequestsListPage({ onNewRequest }) {
     setStatusMessage("");
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/requests/${requestId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ status: newStatus }),
+      const response = await fetch(API_ENDPOINTS.requestStatus(requestId), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ status: newStatus }),
+      });
 
       const result = await response.json();
 
