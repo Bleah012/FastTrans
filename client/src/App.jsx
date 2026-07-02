@@ -6,6 +6,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import "./App.css";
+import AppLayout from "./components/AppLayout";
 import ClientRequestPage from "./pages/ClientRequestPage";
 import RequestsListPage from "./pages/RequestsListPage";
 
@@ -25,9 +26,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/requests/new" replace />} />
-        <Route path="/requests/new" element={<ClientRequestRoute />} />
-        <Route path="/requests" element={<RequestsListRoute />} />
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Navigate to="/requests/new" replace />} />
+          <Route path="/requests/new" element={<ClientRequestRoute />} />
+          <Route path="/requests" element={<RequestsListRoute />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
