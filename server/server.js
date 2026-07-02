@@ -3,6 +3,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const requestRoutes = require("./routes/requestRoutes");
+const notFound = require("./middleware/notFound");
+const errorHandler = require("./middleware/errorHandler");
 
 dotenv.config();
 connectDB();
@@ -24,6 +26,9 @@ app.get("/api/health", (req, res) => {
     message: "FastTrans API is healthy",
   });
 });
+
+app.use(notFound);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
