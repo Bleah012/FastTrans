@@ -11,6 +11,14 @@ const emptyFormData = {
   instructions: "",
 };
 
+const packageTypes = [
+  "General Goods",
+  "Perishable Goods",
+  "Fragile Items",
+  "Heavy Cargo",
+  "Medical Supplies",
+];
+
 function ClientRequestPage({ onViewRequests }) {
   const [formData, setFormData] = useState(emptyFormData);
   const [errors, setErrors] = useState({});
@@ -153,37 +161,46 @@ function ClientRequestPage({ onViewRequests }) {
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col gap-4 border-b border-slate-300 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-blue-700">FastTrans</h1>
-            <p className="text-slate-600">Client Request Module</p>
-          </div>
+        <header className="mb-8 rounded-lg border border-slate-200 bg-white px-6 py-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+                Client Request Module
+              </p>
+              <h1 className="mt-1 text-3xl font-bold text-slate-950">
+                FastTrans
+              </h1>
+              <p className="mt-1 text-slate-600">
+                Submit transport details and track client requests.
+              </p>
+            </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onViewRequests}
-              className="rounded-md border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-            >
-              View Requests
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onViewRequests}
+                className="rounded-md border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                View Requests
+              </button>
 
-            <button
-              type="button"
-              onClick={handleNewRequest}
-              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-            >
-              New Request
-            </button>
+              <button
+                type="button"
+                onClick={handleNewRequest}
+                className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                New Request
+              </button>
+            </div>
           </div>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-6">
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-6 py-5">
               <h2 className="text-2xl font-bold">Submit Transport Request</h2>
               <p className="mt-1 text-slate-600">
-                Enter trip, package, and schedule details.
+                Complete the required trip, package, and schedule information.
               </p>
 
               {statusMessage && (
@@ -199,115 +216,131 @@ function ClientRequestPage({ onViewRequests }) {
               )}
             </div>
 
-            <form onSubmit={handleSubmit} className="grid gap-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Pickup Location
-                  </label>
-                  <input
-                    type="text"
-                    name="pickupLocation"
-                    value={formData.pickupLocation}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Nairobi, Kenya"
-                  />
-                  {errors.pickupLocation && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.pickupLocation}
-                    </p>
-                  )}
-                </div>
+            <form onSubmit={handleSubmit} className="grid gap-8 p-6">
+              <div>
+                <h3 className="mb-4 text-lg font-bold">Route Information</h3>
 
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Destination
-                  </label>
-                  <input
-                    type="text"
-                    name="destination"
-                    value={formData.destination}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Mombasa, Kenya"
-                  />
-                  {errors.destination && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.destination}
-                    </p>
-                  )}
-                </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Pickup Location <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="pickupLocation"
+                      value={formData.pickupLocation}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                      placeholder="Nairobi, Kenya"
+                    />
+                    {errors.pickupLocation && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.pickupLocation}
+                      </p>
+                    )}
+                  </div>
 
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Package Type
-                  </label>
-                  <select
-                    name="packageType"
-                    value={formData.packageType}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                  >
-                    <option>General Goods</option>
-                    <option>Perishable Goods</option>
-                    <option>Fragile Items</option>
-                    <option>Heavy Cargo</option>
-                    <option>Medical Supplies</option>
-                  </select>
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Destination <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="destination"
+                      value={formData.destination}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                      placeholder="Mombasa, Kenya"
+                    />
+                    {errors.destination && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.destination}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    name="weight"
-                    value={formData.weight}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="25"
-                  />
-                  {errors.weight && (
-                    <p className="mt-2 text-sm text-red-600">{errors.weight}</p>
-                  )}
+              <div>
+                <h3 className="mb-4 text-lg font-bold">Package Details</h3>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Package Type
+                    </label>
+                    <select
+                      name="packageType"
+                      value={formData.packageType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    >
+                      {packageTypes.map((packageType) => (
+                        <option key={packageType}>{packageType}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Weight (kg) <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="weight"
+                      value={formData.weight}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                      placeholder="25"
+                    />
+                    {errors.weight && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.weight}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Pickup Date
-                  </label>
-                  <input
-                    type="date"
-                    name="pickupDate"
-                    value={formData.pickupDate}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                  />
-                  {errors.pickupDate && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.pickupDate}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <h3 className="mb-4 text-lg font-bold">Pickup Schedule</h3>
 
-                <div>
-                  <label className="mb-2 block font-semibold text-slate-800">
-                    Pickup Time
-                  </label>
-                  <input
-                    type="time"
-                    name="pickupTime"
-                    value={formData.pickupTime}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                  />
-                  {errors.pickupTime && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.pickupTime}
-                    </p>
-                  )}
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Pickup Date <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      name="pickupDate"
+                      value={formData.pickupDate}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    />
+                    {errors.pickupDate && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.pickupDate}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block font-semibold text-slate-800">
+                      Pickup Time <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      name="pickupTime"
+                      value={formData.pickupTime}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                    />
+                    {errors.pickupTime && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.pickupTime}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -325,7 +358,7 @@ function ClientRequestPage({ onViewRequests }) {
                 />
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-6">
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -354,9 +387,12 @@ function ClientRequestPage({ onViewRequests }) {
           </section>
 
           <aside className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-6 text-2xl font-bold">Request Summary</h2>
+            <h2 className="text-xl font-bold">Request Summary</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Live preview of the current client request.
+            </p>
 
-            <div className="space-y-5">
+            <div className="mt-6 space-y-5">
               <div className="flex justify-between border-b border-slate-200 pb-4">
                 <span className="text-slate-600">Estimated Distance</span>
                 <strong>485 km</strong>
@@ -384,6 +420,14 @@ function ClientRequestPage({ onViewRequests }) {
                 {formData.pickupLocation || "Pickup location"} to{" "}
                 {formData.destination || "Destination"}
               </div>
+            </div>
+
+            <div className="mt-6 rounded-md border border-slate-200 p-4">
+              <h3 className="font-bold">Current Package</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                {formData.packageType}{" "}
+                {formData.weight ? `• ${formData.weight} kg` : ""}
+              </p>
             </div>
           </aside>
         </div>
