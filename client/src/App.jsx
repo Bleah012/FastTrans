@@ -1,10 +1,4 @@
-import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-  useNavigate,
-} from "react-router-dom";
+import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
 import "./App.css";
 import AppLayout from "./components/AppLayout";
 import ClientDashboardPage from "./pages/ClientDashboardPage";
@@ -16,6 +10,7 @@ import OfferManagementPage from "./pages/OfferManagementPage";
 import VehicleAvailabilityPage from "./pages/VehicleAvailabilityPage";
 import SchedulingAdminPage from "./pages/SchedulingAdminPage";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
 
 function ClientRequestRoute() {
   const navigate = useNavigate();
@@ -34,16 +29,16 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<ClientDashboardPage />} />
           <Route path="/requests/new" element={<ClientRequestRoute />} />
           <Route path="/requests" element={<RequestsListRoute />} />
-          <Route path="*" element={<NotFoundPage />} />
           <Route path="/offers" element={<OfferManagementPage />} />
           <Route path="/offers/review" element={<OfferClientReviewPage />} />
           <Route path="/availability" element={<VehicleAvailabilityPage />} />
           <Route path="/scheduling" element={<SchedulingAdminPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
