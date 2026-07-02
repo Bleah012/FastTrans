@@ -1,21 +1,26 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// Protects routes by requiring a valid JWT token.
+// Protects routes that require a logged-in user.
 const protect = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    let token;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: "Not authorized, token missing.",
       });
     }
 
-    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     const user = await User.findById(decoded.userId).select("-password");
 
     if (!user) {
@@ -26,19 +31,49 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
-    return next();
+    next();
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: "Not authorized, token failed.",
+      message: "Not authorized, token invalid.",
     });
   }
 };
 
-// Restricts a route to specific user roles.
-const authorizeRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+// Reads a user from the token when one is sent, but does not block public requests.
+const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) {
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId).select("-password");
+
+    if (user) {
+      req.user = user;
+    }
+
+    return next();
+  } catch (error) {
+    return next();
+  }
+};
+
+// Allows only selected roles to access a protected route.
+const authorizeRoles =
+  (...allowedRoles) =>
+  (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "Access denied for this role.",
@@ -47,9 +82,9 @@ const authorizeRoles = (...roles) => {
 
     return next();
   };
-};
 
 module.exports = {
   protect,
+  optionalProtect,
   authorizeRoles,
 };

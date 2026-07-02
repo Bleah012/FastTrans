@@ -1,134 +1,222 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import AdminAreaNotice from "../components/AdminAreaNotice";
+import {
+  BadgeDollarSign,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  PackageCheck,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
+import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 import { API_ENDPOINTS } from "../config/api";
 
 const OFFERS_STORAGE_KEY = "fasttrans-generated-offers";
 
-const defaultOfferData = {
-  basePrice: "7500",
-  tax: "500",
+const defaultOfferForm = {
+  offerAmount: "",
+  serviceFee: "",
   discount: "0",
-  estimatedDistance: "485",
-  estimatedDuration: "7h 20m",
-  vehicleMatch: "Truck",
+  vehicleType: "Truck",
+  distance: "485 km",
+  duration: "7h 20m",
   notes: "Offer includes standard pickup, transport, and delivery handling.",
 };
 
+function readStorage(key, fallbackValue) {
+  try {
+    const savedValue = localStorage.getItem(key);
+    return savedValue ? JSON.parse(savedValue) : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
+
 function OfferManagementPage() {
   const [requests, setRequests] = useState([]);
+  const [offers, setOffers] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [offerData, setOfferData] = useState(defaultOfferData);
-  const [generatedOffer, setGeneratedOffer] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [offerForm, setOfferForm] = useState(defaultOfferForm);
   const [statusMessage, setStatusMessage] = useState("");
-  const [statusType, setStatusType] = useState("");
+  const [statusType, setStatusType] = useState("success");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const getRequestId = (request) => request.id || request._id;
+  const canAccessAdminArea = hasAdminAccess();
 
-  useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const response = await fetch(API_ENDPOINTS.requests);
-        const result = await response.json();
+  const showStatus = (message, type = "success") => {
+    setStatusMessage(message);
+    setStatusType(type);
+  };
 
-        if (!response.ok) {
-          setStatusMessage(
-            result.message || "Failed to load transport requests.",
-          );
-          setStatusType("error");
-          return;
-        }
+  const saveOffers = (nextOffers) => {
+    setOffers(nextOffers);
+    localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(nextOffers));
+  };
 
-        const loadedRequests = result.data || [];
+  const loadRequests = async () => {
+    if (!canAccessAdminArea) {
+      return;
+    }
 
-        setRequests(loadedRequests);
-        setSelectedRequest(loadedRequests[0] || null);
-      } catch (error) {
-        console.error("Offer requests fetch error:", error);
-        setStatusMessage("Could not connect to the FastTrans server.");
-        setStatusType("error");
-      } finally {
-        setIsLoading(false);
+    setIsLoading(true);
+    setStatusMessage("");
+
+    try {
+      const response = await fetch(API_ENDPOINTS.requests);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to load requests.");
       }
-    };
 
-    fetchRequests();
-  }, []);
-
-  const handleOfferChange = (event) => {
-    const { name, value } = event.target;
-
-    setOfferData((currentOfferData) => ({
-      ...currentOfferData,
-      [name]: value,
-    }));
-
-    if (statusMessage) {
-      setStatusMessage("");
-      setStatusType("");
+      const requestData = result.data || [];
+      setRequests(requestData);
+      setSelectedRequest(requestData[0] || null);
+      showStatus("Submitted requests loaded successfully.");
+    } catch (error) {
+      showStatus(error.message || "Failed to load requests.", "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (!canAccessAdminArea) {
+      return;
+    }
+
+    setOffers(readStorage(OFFERS_STORAGE_KEY, []));
+    loadRequests();
+  }, [canAccessAdminArea]);
+
+  const approvedRequests = useMemo(
+    () => requests.filter((request) => request.status === "approved"),
+    [requests],
+  );
+
+  const offerStats = useMemo(
+    () => ({
+      total: offers.length,
+      sent: offers.filter((offer) => offer.status === "sent").length,
+      accepted: offers.filter((offer) => offer.status === "accepted").length,
+      rejected: offers.filter((offer) => offer.status === "rejected").length,
+    }),
+    [offers],
+  );
+
   const handleSelectRequest = (request) => {
     setSelectedRequest(request);
-    setGeneratedOffer(null);
-    setStatusMessage("");
-    setStatusType("");
+
+    const weight = Number(request.weight) || 0;
+    const vehicleType =
+      weight > 5000
+        ? "Heavy Cargo Trailer"
+        : weight > 1500
+          ? "Truck"
+          : weight > 500
+            ? "Van"
+            : "Pickup";
+
+    const baseAmount = Math.round(2500 + weight * 90 + 485 * 6);
+
+    setOfferForm({
+      ...defaultOfferForm,
+      offerAmount: String(baseAmount),
+      serviceFee: "500",
+      vehicleType,
+    });
   };
 
-  const basePrice = Number(offerData.basePrice) || 0;
-  const tax = Number(offerData.tax) || 0;
-  const discount = Number(offerData.discount) || 0;
-  const totalOfferAmount = Math.max(basePrice + tax - discount, 0);
+  const handleOfferFormChange = (event) => {
+    const { name, value } = event.target;
 
-  const handleGenerateOffer = () => {
+    setOfferForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
+  };
+
+  const handleGenerateOffer = (event) => {
+    event.preventDefault();
+
     if (!selectedRequest) {
-      setStatusMessage("Select a client request before generating an offer.");
-      setStatusType("error");
+      showStatus("Select a request before generating an offer.", "error");
+      return;
+    }
+
+    if (!offerForm.offerAmount || Number(offerForm.offerAmount) <= 0) {
+      showStatus("Enter a valid offer amount.", "error");
       return;
     }
 
     const newOffer = {
       id: `OFFER-${Date.now()}`,
-      requestId: getRequestId(selectedRequest),
-      request: {
-        pickupLocation: selectedRequest.pickupLocation,
-        destination: selectedRequest.destination,
-        packageType: selectedRequest.packageType,
-        weight: selectedRequest.weight,
-        pickupDate: selectedRequest.pickupDate,
-        pickupTime: selectedRequest.pickupTime,
-        instructions: selectedRequest.instructions,
-      },
-      pricing: {
-        basePrice,
-        tax,
-        discount,
-        totalAmount: totalOfferAmount,
-      },
-      estimatedDistance: offerData.estimatedDistance,
-      estimatedDuration: offerData.estimatedDuration,
-      vehicleMatch: offerData.vehicleMatch,
-      notes: offerData.notes,
+      requestId: selectedRequest.id,
+      client: selectedRequest.client,
+      clientName: selectedRequest.clientName,
+      clientEmail: selectedRequest.clientEmail,
+      pickupLocation: selectedRequest.pickupLocation,
+      destination: selectedRequest.destination,
+      route: `${selectedRequest.pickupLocation} to ${selectedRequest.destination}`,
+      packageType: selectedRequest.packageType,
+      weight: selectedRequest.weight,
+      pickupDate: selectedRequest.pickupDate,
+      pickupTime: selectedRequest.pickupTime,
+      offerAmount: Number(offerForm.offerAmount),
+      serviceFee: Number(offerForm.serviceFee) || 0,
+      discount: Number(offerForm.discount) || 0,
+      vehicleType: offerForm.vehicleType,
+      distance: offerForm.distance,
+      duration: offerForm.duration,
+      notes: offerForm.notes,
       status: "sent",
-      schedulingStatus: "waiting_for_client_response",
+      schedulingStatus: "waiting for client",
       createdAt: new Date().toISOString(),
     };
 
-    const savedOffers = JSON.parse(
-      localStorage.getItem(OFFERS_STORAGE_KEY) || "[]",
-    );
-
-    localStorage.setItem(
-      OFFERS_STORAGE_KEY,
-      JSON.stringify([newOffer, ...savedOffers]),
-    );
-
-    setGeneratedOffer(newOffer);
-    setStatusMessage("Transport offer generated and sent for client review.");
-    setStatusType("success");
+    saveOffers([newOffer, ...offers]);
+    setOfferForm(defaultOfferForm);
+    showStatus("Offer generated and sent to the client review page.");
   };
+
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      maximumFractionDigits: 0,
+    }).format(Number(value) || 0);
+
+  const getStatusClass = (status) => {
+    if (status === "accepted") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (status === "rejected") {
+      return "bg-red-50 text-red-700";
+    }
+
+    if (status === "approved") {
+      return "bg-amber-50 text-amber-700";
+    }
+
+    return "bg-blue-50 text-blue-700";
+  };
+
+  if (!canAccessAdminArea) {
+    return (
+      <main className="px-6 py-8 text-slate-950">
+        <section className="mx-auto max-w-7xl">
+          <AdminAreaNotice
+            title="Offer Management Access"
+            description="Login as an admin or manager before generating, sending, or managing transport offers."
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="px-6 py-8 text-slate-950">
@@ -138,19 +226,41 @@ function OfferManagementPage() {
           description="Login as an admin or manager before generating, sending, or managing transport offers."
         />
 
-        <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-            Amanda Module
-          </p>
-          <h2 className="mt-1 text-3xl font-bold">Offer Management</h2>
-          <p className="mt-1 text-slate-600">
-            Generate transport offers for submitted client requests.
-          </p>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+              Amanda Module
+            </p>
+            <h1 className="mt-2 text-3xl font-black">Offer Management</h1>
+            <p className="mt-2 text-slate-600">
+              Generate transport offers for approved client requests and send
+              them to the correct client account.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={loadRequests}
+              className="inline-flex items-center gap-2 rounded-md border border-blue-700 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+            >
+              <RefreshCw size={18} />
+              {isLoading ? "Refreshing..." : "Refresh Requests"}
+            </button>
+
+            <Link
+              to="/offers/review"
+              className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800"
+            >
+              <PackageCheck size={18} />
+              Review Offers
+            </Link>
+          </div>
         </div>
 
         {statusMessage && (
           <div
-            className={`mb-6 rounded-md px-4 py-3 text-sm font-medium ${
+            className={`mb-6 rounded-md px-4 py-3 text-sm font-semibold ${
               statusType === "success"
                 ? "bg-emerald-50 text-emerald-700"
                 : "bg-red-50 text-red-700"
@@ -160,284 +270,291 @@ function OfferManagementPage() {
           </div>
         )}
 
-        {generatedOffer && (
-          <section className="mb-8 rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                  Offer Generated
-                </p>
-                <h3 className="mt-1 text-2xl font-bold">
-                  Offer Ready for Client Review
-                </h3>
-                <p className="mt-1 text-slate-600">
-                  The offer has been saved and can now be accepted or rejected
-                  by the client.
-                </p>
+        <div className="mb-8 grid gap-4 md:grid-cols-4">
+          {[
+            ["Total Offers", offerStats.total, FileText, "text-slate-950"],
+            ["Sent Offers", offerStats.sent, Send, "text-blue-700"],
+            ["Accepted", offerStats.accepted, CheckCircle2, "text-emerald-700"],
+            ["Rejected", offerStats.rejected, ShieldCheck, "text-red-700"],
+          ].map(([label, value, Icon, color]) => (
+            <div
+              key={label}
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-600">{label}</p>
+                <Icon size={22} className="text-blue-700" />
               </div>
-
-              <span className="w-fit rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
-                {generatedOffer.status}
-              </span>
+              <p className={`mt-4 text-3xl font-black ${color}`}>{value}</p>
             </div>
+          ))}
+        </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-md bg-slate-50 p-4">
-                <p className="text-sm text-slate-600">Offer ID</p>
-                <p className="mt-1 break-all font-semibold">
-                  {generatedOffer.id}
-                </p>
-              </div>
-
-              <div className="rounded-md bg-slate-50 p-4">
-                <p className="text-sm text-slate-600">Route</p>
-                <p className="mt-1 font-semibold">
-                  {generatedOffer.request.pickupLocation} to{" "}
-                  {generatedOffer.request.destination}
-                </p>
-              </div>
-
-              <div className="rounded-md bg-slate-50 p-4">
-                <p className="text-sm text-slate-600">Total Offer</p>
-                <p className="mt-1 font-semibold">
-                  KES {generatedOffer.pricing.totalAmount.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to="/offers/review"
-                className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
-              >
-                Open Client Review
-              </Link>
-            </div>
-          </section>
-        )}
-
-        <div className="grid gap-8 xl:grid-cols-[1fr_1.2fr]">
-          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-xl font-bold">Submitted Requests</h3>
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">Approved Client Requests</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Select a request to prepare a transport offer.
+                Select an approved request to prepare and send a transport
+                offer.
               </p>
             </div>
 
-            {isLoading ? (
-              <p className="px-6 py-8 text-slate-600">Loading requests...</p>
-            ) : requests.length === 0 ? (
-              <p className="px-6 py-8 text-slate-600">
-                No submitted requests are available for offer generation.
-              </p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {requests.map((request) => {
-                  const requestId = getRequestId(request);
+            <div className="max-h-[620px] overflow-y-auto">
+              {approvedRequests.map((request) => {
+                const isSelected = selectedRequest?.id === request.id;
 
-                  return (
-                    <button
-                      key={requestId}
-                      type="button"
-                      onClick={() => handleSelectRequest(request)}
-                      className={`block w-full px-6 py-4 text-left hover:bg-slate-50 ${
-                        selectedRequest &&
-                        getRequestId(selectedRequest) === requestId
-                          ? "bg-blue-50"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-semibold">
-                            {request.pickupLocation} to {request.destination}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {request.packageType} - {request.weight} kg
-                          </p>
-                        </div>
-
-                        <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                          {request.status}
-                        </span>
+                return (
+                  <button
+                    type="button"
+                    key={request.id}
+                    onClick={() => handleSelectRequest(request)}
+                    className={`block w-full border-b border-slate-100 p-5 text-left transition hover:bg-blue-50 ${
+                      isSelected ? "bg-blue-50" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold">
+                          {request.pickupLocation} to {request.destination}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {request.packageType} - {request.weight} kg
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {request.clientName || "Unknown client"} -{" "}
+                          {request.clientEmail || "No email"}
+                        </p>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                          request.status,
+                        )}`}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {approvedRequests.length === 0 && (
+                <div className="p-6 text-center text-slate-600">
+                  No approved requests are ready for offer generation.
+                </div>
+              )}
+            </div>
           </section>
 
-          <section className="grid gap-8">
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-6 py-5">
-                <h3 className="text-xl font-bold">Generate Offer</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Enter offer pricing, vehicle match, and delivery estimates.
-                </p>
-              </div>
+          <form
+            onSubmit={handleGenerateOffer}
+            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+          >
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">Generate Offer</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Enter pricing, vehicle match, and delivery estimates.
+              </p>
+            </div>
 
-              <div className="grid gap-6 p-6">
-                {selectedRequest ? (
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-600">
-                      Selected Request
-                    </p>
-                    <p className="mt-1 font-bold">
-                      {selectedRequest.pickupLocation} to{" "}
-                      {selectedRequest.destination}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {selectedRequest.packageType} - {selectedRequest.weight}{" "}
-                      kg
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-md bg-red-50 p-4 text-sm font-medium text-red-700">
-                    Select a request before generating an offer.
-                  </div>
-                )}
+            <div className="grid gap-5 p-5">
+              {selectedRequest ? (
+                <div className="rounded-lg bg-slate-100 p-5">
+                  <p className="text-sm font-semibold text-slate-600">
+                    Selected Request
+                  </p>
+                  <p className="mt-2 font-bold">
+                    {selectedRequest.pickupLocation} to{" "}
+                    {selectedRequest.destination}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {selectedRequest.packageType} - {selectedRequest.weight} kg
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {selectedRequest.clientName || "Unknown client"} -{" "}
+                    {selectedRequest.clientEmail || "No email"}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-amber-50 p-5 text-sm font-semibold text-amber-700">
+                  Select an approved request to generate an offer.
+                </div>
+              )}
 
-                <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Offer Amount
+                  <div className="mt-2 flex items-center gap-3 rounded-md border border-slate-300 px-4 py-3">
+                    <BadgeDollarSign size={18} className="text-slate-400" />
+                    <input
+                      type="number"
+                      name="offerAmount"
+                      value={offerForm.offerAmount}
+                      onChange={handleOfferFormChange}
+                      className="w-full bg-transparent outline-none"
+                      placeholder="7500"
+                    />
+                  </div>
+                </label>
+
+                <label className="text-sm font-semibold text-slate-700">
+                  Service Fee
                   <input
                     type="number"
-                    name="basePrice"
-                    value={offerData.basePrice}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Base Price"
+                    name="serviceFee"
+                    value={offerForm.serviceFee}
+                    onChange={handleOfferFormChange}
+                    className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                    placeholder="500"
                   />
+                </label>
 
-                  <input
-                    type="number"
-                    name="tax"
-                    value={offerData.tax}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Tax"
-                  />
-
+                <label className="text-sm font-semibold text-slate-700">
+                  Discount
                   <input
                     type="number"
                     name="discount"
-                    value={offerData.discount}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Discount"
+                    value={offerForm.discount}
+                    onChange={handleOfferFormChange}
+                    className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                    placeholder="0"
                   />
+                </label>
 
-                  <select
-                    name="vehicleMatch"
-                    value={offerData.vehicleMatch}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                  >
-                    <option>Truck</option>
-                    <option>Van</option>
-                    <option>Pickup</option>
-                    <option>Refrigerated Truck</option>
-                    <option>Heavy Cargo Trailer</option>
-                  </select>
+                <label className="text-sm font-semibold text-slate-700">
+                  Vehicle Type
+                  <div className="mt-2 flex items-center gap-3 rounded-md border border-slate-300 px-4 py-3">
+                    <Truck size={18} className="text-slate-400" />
+                    <select
+                      name="vehicleType"
+                      value={offerForm.vehicleType}
+                      onChange={handleOfferFormChange}
+                      className="w-full bg-transparent outline-none"
+                    >
+                      <option value="Pickup">Pickup</option>
+                      <option value="Van">Van</option>
+                      <option value="Truck">Truck</option>
+                      <option value="Refrigerated Truck">
+                        Refrigerated Truck
+                      </option>
+                      <option value="Heavy Cargo Trailer">
+                        Heavy Cargo Trailer
+                      </option>
+                    </select>
+                  </div>
+                </label>
 
-                  <input
-                    type="number"
-                    name="estimatedDistance"
-                    value={offerData.estimatedDistance}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Estimated Distance"
-                  />
-
+                <label className="text-sm font-semibold text-slate-700">
+                  Distance
                   <input
                     type="text"
-                    name="estimatedDuration"
-                    value={offerData.estimatedDuration}
-                    onChange={handleOfferChange}
-                    className="rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-                    placeholder="Estimated Duration"
+                    name="distance"
+                    value={offerForm.distance}
+                    onChange={handleOfferFormChange}
+                    className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
                   />
-                </div>
+                </label>
 
+                <label className="text-sm font-semibold text-slate-700">
+                  Duration
+                  <input
+                    type="text"
+                    name="duration"
+                    value={offerForm.duration}
+                    onChange={handleOfferFormChange}
+                    className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                  />
+                </label>
+              </div>
+
+              <label className="text-sm font-semibold text-slate-700">
+                Offer Notes
                 <textarea
                   name="notes"
-                  value={offerData.notes}
-                  onChange={handleOfferChange}
-                  rows="4"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                  value={offerForm.notes}
+                  onChange={handleOfferFormChange}
+                  rows="5"
+                  className="mt-2 w-full resize-y rounded-md border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
                 />
+              </label>
 
-                <div className="border-t border-slate-200 pt-6">
-                  <button
-                    type="button"
-                    onClick={handleGenerateOffer}
-                    className="rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
-                  >
-                    Generate Offer
-                  </button>
-                </div>
-              </div>
+              <button
+                type="submit"
+                className="inline-flex w-fit items-center gap-2 rounded-md bg-blue-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-800"
+              >
+                <Send size={18} />
+                Generate and Send Offer
+              </button>
             </div>
-
-            <aside className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-bold">Generated Offer Preview</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                This preview shows what will be displayed to the client.
-              </p>
-
-              <div className="mt-6 space-y-4">
-                <div className="rounded-md bg-blue-50 p-4">
-                  <p className="text-sm font-semibold text-blue-700">
-                    Total Offer Amount
-                  </p>
-                  <p className="mt-1 text-3xl font-bold">
-                    KES {totalOfferAmount.toLocaleString()}
-                  </p>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <PreviewItem
-                    label="Base Price"
-                    value={`KES ${basePrice.toLocaleString()}`}
-                  />
-                  <PreviewItem
-                    label="Tax"
-                    value={`KES ${tax.toLocaleString()}`}
-                  />
-                  <PreviewItem
-                    label="Discount"
-                    value={`KES ${discount.toLocaleString()}`}
-                  />
-                  <PreviewItem label="Vehicle" value={offerData.vehicleMatch} />
-                  <PreviewItem
-                    label="Distance"
-                    value={`${offerData.estimatedDistance} km`}
-                  />
-                  <PreviewItem
-                    label="Duration"
-                    value={offerData.estimatedDuration}
-                  />
-                </div>
-
-                <div className="rounded-md border border-slate-200 p-4">
-                  <p className="text-sm text-slate-600">Notes</p>
-                  <p className="mt-1 font-semibold">{offerData.notes}</p>
-                </div>
-              </div>
-            </aside>
-          </section>
+          </form>
         </div>
+
+        <section className="mt-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-5">
+            <h2 className="text-xl font-bold">Generated Offers</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Offers are stored locally for the client review workflow.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-5 py-4">Offer ID</th>
+                  <th className="px-5 py-4">Client</th>
+                  <th className="px-5 py-4">Route</th>
+                  <th className="px-5 py-4">Vehicle</th>
+                  <th className="px-5 py-4">Amount</th>
+                  <th className="px-5 py-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {offers.map((offer) => (
+                  <tr key={offer.id} className="border-t border-slate-100">
+                    <td className="px-5 py-4 font-semibold">{offer.id}</td>
+                    <td className="px-5 py-4">
+                      <p className="font-semibold">
+                        {offer.clientName || "Unknown client"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {offer.clientEmail || "No email"}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">{offer.route}</td>
+                    <td className="px-5 py-4">{offer.vehicleType}</td>
+                    <td className="px-5 py-4">
+                      {formatCurrency(offer.offerAmount)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                          offer.status,
+                        )}`}
+                      >
+                        {offer.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+                {offers.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="6"
+                      className="px-5 py-6 text-center text-slate-600"
+                    >
+                      No offers have been generated yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
     </main>
-  );
-}
-
-function PreviewItem({ label, value }) {
-  return (
-    <div className="rounded-md bg-slate-50 p-4">
-      <p className="text-sm text-slate-600">{label}</p>
-      <p className="font-semibold">{value}</p>
-    </div>
   );
 }
 

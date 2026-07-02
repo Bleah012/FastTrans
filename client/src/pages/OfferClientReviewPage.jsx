@@ -1,8 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  BadgeDollarSign,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  Filter,
+  PackageCheck,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Truck,
+  XCircle,
+} from "lucide-react";
+import { getAuthUser } from "../config/auth";
 
 const OFFERS_STORAGE_KEY = "fasttrans-generated-offers";
+const ACCEPTED_OFFERS_STORAGE_KEY = "fasttrans-accepted-offers";
 
-const offerStatusFilters = ["all", "sent", "accepted", "rejected"];
+function readStorage(key, fallbackValue) {
+  try {
+    const savedValue = localStorage.getItem(key);
+    return savedValue ? JSON.parse(savedValue) : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
 
 function OfferClientReviewPage() {
   const [offers, setOffers] = useState([]);
@@ -10,78 +33,197 @@ function OfferClientReviewPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [statusMessage, setStatusMessage] = useState("");
-  const [statusType, setStatusType] = useState("");
+  const [statusType, setStatusType] = useState("success");
 
-  // Loads generated offers from localStorage for client review.
-  useEffect(() => {
-    const savedOffers = JSON.parse(
-      localStorage.getItem(OFFERS_STORAGE_KEY) || "[]",
+  const authUser = getAuthUser();
+  const isAdmin = authUser?.role === "admin" || authUser?.role === "manager";
+
+  const getOfferStatus = (offer) => offer.status || "sent";
+
+  const getOfferAmount = (offer) =>
+    Number(offer.offerAmount || offer.amount || offer.totalAmount || 0);
+
+  const getOfferRoute = (offer) =>
+    offer.route ||
+    `${offer.pickupLocation || "Pickup"} to ${offer.destination || "Destination"}`;
+
+  const getOfferVehicle = (offer) =>
+    offer.vehicleType || offer.vehicle || offer.vehicleMatch || "Truck";
+
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      maximumFractionDigits: 0,
+    }).format(Number(value) || 0);
+
+  const showStatus = (message, type = "success") => {
+    setStatusMessage(message);
+    setStatusType(type);
+  };
+
+  const visibleOffers = useMemo(() => {
+    if (isAdmin) {
+      return offers;
+    }
+
+    return offers.filter(
+      (offer) =>
+        offer.clientEmail?.toLowerCase() === authUser?.email?.toLowerCase(),
     );
+  }, [offers, authUser?.email, isAdmin]);
+
+  const filteredOffers = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase().trim();
+
+    return visibleOffers.filter((offer) => {
+      const status = getOfferStatus(offer);
+
+      const matchesSearch =
+        !normalizedSearch ||
+        offer.id?.toLowerCase().includes(normalizedSearch) ||
+        offer.offerId?.toLowerCase().includes(normalizedSearch) ||
+        getOfferRoute(offer).toLowerCase().includes(normalizedSearch) ||
+        getOfferVehicle(offer).toLowerCase().includes(normalizedSearch) ||
+        offer.clientName?.toLowerCase().includes(normalizedSearch) ||
+        offer.clientEmail?.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus = statusFilter === "all" || status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [visibleOffers, searchTerm, statusFilter]);
+
+  const totals = useMemo(
+    () => ({
+      total: visibleOffers.length,
+      sent: visibleOffers.filter((offer) => getOfferStatus(offer) === "sent")
+        .length,
+      accepted: visibleOffers.filter(
+        (offer) => getOfferStatus(offer) === "accepted",
+      ).length,
+      rejected: visibleOffers.filter(
+        (offer) => getOfferStatus(offer) === "rejected",
+      ).length,
+      readyForScheduling: visibleOffers.filter(
+        (offer) => getOfferStatus(offer) === "accepted",
+      ).length,
+    }),
+    [visibleOffers],
+  );
+
+  const loadOffers = () => {
+    const savedOffers = readStorage(OFFERS_STORAGE_KEY, []);
 
     setOffers(savedOffers);
-    setSelectedOffer(savedOffers[0] || null);
+
+    const nextVisibleOffers = isAdmin
+      ? savedOffers
+      : savedOffers.filter(
+          (offer) =>
+            offer.clientEmail?.toLowerCase() === authUser?.email?.toLowerCase(),
+        );
+
+    setSelectedOffer(nextVisibleOffers[0] || null);
+
+    showStatus(
+      isAdmin
+        ? "All generated offers loaded successfully."
+        : "Your generated offers loaded successfully.",
+    );
+  };
+
+  useEffect(() => {
+    loadOffers();
   }, []);
 
-  // Stores the selected offer so the client can view its details.
-  const handleSelectOffer = (offer) => {
-    setSelectedOffer(offer);
-    setStatusMessage("");
-    setStatusType("");
+  const saveOffers = (nextOffers) => {
+    setOffers(nextOffers);
+    localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(nextOffers));
   };
 
-  // Clears search and status filter controls.
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("all");
+  const saveAcceptedOfferForAvailability = (offer) => {
+    const acceptedOffers = readStorage(ACCEPTED_OFFERS_STORAGE_KEY, []);
+
+    const availabilityOffer = {
+      ...offer,
+      offerId: offer.id || offer.offerId,
+      status: "accepted",
+      schedulingStatus: "ready for scheduling",
+      acceptedAt: new Date().toISOString(),
+    };
+
+    const nextAcceptedOffers = [
+      availabilityOffer,
+      ...acceptedOffers.filter(
+        (savedOffer) =>
+          savedOffer.id !== availabilityOffer.id &&
+          savedOffer.offerId !== availabilityOffer.offerId,
+      ),
+    ];
+
+    localStorage.setItem(
+      ACCEPTED_OFFERS_STORAGE_KEY,
+      JSON.stringify(nextAcceptedOffers),
+    );
   };
 
-  // Clears generated offers from localStorage for demo reset.
-  const handleClearOffers = () => {
-    localStorage.removeItem(OFFERS_STORAGE_KEY);
-    setOffers([]);
-    setSelectedOffer(null);
-    setSearchTerm("");
-    setStatusFilter("all");
-    setStatusMessage("Generated offers cleared successfully.");
-    setStatusType("success");
-  };
+  const handleOfferDecision = (offerId, status) => {
+    const selected = offers.find(
+      (offer) => offer.id === offerId || offer.offerId === offerId,
+    );
 
-  // Updates offer status after the client accepts or rejects it.
-  const handleOfferResponse = (offerToUpdate, responseStatus) => {
-    if (!offerToUpdate) {
-      setStatusMessage("Select an offer before responding.");
-      setStatusType("error");
+    if (!selected) {
+      showStatus("Offer not found.", "error");
+      return;
+    }
+
+    if (!isAdmin && selected.clientEmail !== authUser?.email) {
+      showStatus("You can only update offers linked to your account.", "error");
       return;
     }
 
     const updatedOffer = {
-      ...offerToUpdate,
-      status: responseStatus,
+      ...selected,
+      status,
       schedulingStatus:
-        responseStatus === "accepted"
-          ? "ready_for_scheduling"
-          : "client_rejected_offer",
+        status === "accepted" ? "ready for scheduling" : "not scheduled",
       respondedAt: new Date().toISOString(),
     };
 
-    const updatedOffers = offers.map((offer) =>
-      offer.id === offerToUpdate.id ? updatedOffer : offer,
+    const nextOffers = offers.map((offer) =>
+      offer.id === offerId || offer.offerId === offerId ? updatedOffer : offer,
     );
 
-    localStorage.setItem(OFFERS_STORAGE_KEY, JSON.stringify(updatedOffers));
-    setOffers(updatedOffers);
+    saveOffers(nextOffers);
     setSelectedOffer(updatedOffer);
 
-    setStatusMessage(
-      responseStatus === "accepted"
-        ? "Offer accepted. It is ready for the scheduling module."
-        : "Offer rejected. Amanda can generate a revised offer if needed.",
-    );
-    setStatusType(responseStatus === "accepted" ? "success" : "error");
+    if (status === "accepted") {
+      saveAcceptedOfferForAvailability(updatedOffer);
+      showStatus("Offer accepted and marked ready for availability check.");
+      return;
+    }
+
+    showStatus("Offer rejected successfully.", "error");
   };
 
-  // Gives offer statuses clear visual styling.
-  const getStatusBadgeClass = (status) => {
+  const handleClearOffers = () => {
+    if (!isAdmin) {
+      showStatus(
+        "Only admin or manager accounts can clear all offers.",
+        "error",
+      );
+      return;
+    }
+
+    localStorage.removeItem(OFFERS_STORAGE_KEY);
+    localStorage.removeItem(ACCEPTED_OFFERS_STORAGE_KEY);
+    setOffers([]);
+    setSelectedOffer(null);
+    showStatus("All offers cleared successfully.");
+  };
+
+  const getStatusClass = (status) => {
     if (status === "accepted") {
       return "bg-emerald-50 text-emerald-700";
     }
@@ -93,70 +235,55 @@ function OfferClientReviewPage() {
     return "bg-blue-50 text-blue-700";
   };
 
-  // Makes status labels easier to read.
-  const formatStatusLabel = (status) => {
-    return String(status || "unknown").replaceAll("_", " ");
-  };
-
-  // Filters offers by search text and offer status.
-  const filteredOffers = offers.filter((offer) => {
-    const searchText = searchTerm.toLowerCase();
-
-    const matchesSearch =
-      offer.id.toLowerCase().includes(searchText) ||
-      offer.request.pickupLocation.toLowerCase().includes(searchText) ||
-      offer.request.destination.toLowerCase().includes(searchText) ||
-      offer.vehicleMatch.toLowerCase().includes(searchText) ||
-      offer.status.toLowerCase().includes(searchText);
-
-    const matchesStatus =
-      statusFilter === "all" || offer.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const activeOffer =
-    selectedOffer &&
-    filteredOffers.some((offer) => offer.id === selectedOffer.id)
-      ? selectedOffer
-      : filteredOffers[0] || null;
-
-  const acceptedOffers = offers.filter((offer) => offer.status === "accepted");
-  const sentCount = offers.filter((offer) => offer.status === "sent").length;
-  const acceptedCount = acceptedOffers.length;
-  const rejectedCount = offers.filter(
-    (offer) => offer.status === "rejected",
-  ).length;
-  const readyForSchedulingCount = offers.filter(
-    (offer) => offer.schedulingStatus === "ready_for_scheduling",
-  ).length;
-
   return (
     <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
               Amanda Module
             </p>
-            <h2 className="mt-1 text-3xl font-bold">Client Offer Review</h2>
-            <p className="mt-1 text-slate-600">
-              Review generated transport offers and accept or reject them.
+            <h1 className="mt-2 text-3xl font-black">
+              {isAdmin ? "Client Offer Review" : "My Offer Review"}
+            </h1>
+            <p className="mt-2 text-slate-600">
+              {isAdmin
+                ? "Review generated transport offers across all clients."
+                : "Review generated transport offers linked to your own account."}
             </p>
+            {authUser && (
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                Signed in as {authUser.name} ({authUser.email})
+              </p>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleClearOffers}
-            className="w-fit rounded-md border border-red-600 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-          >
-            Clear Offers
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={loadOffers}
+              className="inline-flex items-center gap-2 rounded-md border border-blue-700 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+            >
+              <RefreshCw size={18} />
+              Refresh
+            </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleClearOffers}
+                className="inline-flex items-center gap-2 rounded-md border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+              >
+                <Trash2 size={18} />
+                Clear Offers
+              </button>
+            )}
+          </div>
         </div>
 
         {statusMessage && (
           <div
-            className={`mb-6 rounded-md px-4 py-3 text-sm font-medium ${
+            className={`mb-6 rounded-md px-4 py-3 text-sm font-semibold ${
               statusType === "success"
                 ? "bg-emerald-50 text-emerald-700"
                 : "bg-red-50 text-red-700"
@@ -166,326 +293,326 @@ function OfferClientReviewPage() {
           </div>
         )}
 
-        <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">Total Offers</p>
-            <p className="mt-2 text-3xl font-bold">{offers.length}</p>
-          </div>
+        <div className="mb-8 grid gap-4 md:grid-cols-5">
+          {[
+            ["Total Offers", totals.total, ClipboardCheck, "text-slate-950"],
+            ["Sent Offers", totals.sent, PackageCheck, "text-blue-700"],
+            [
+              "Accepted Offers",
+              totals.accepted,
+              CheckCircle2,
+              "text-emerald-700",
+            ],
+            ["Rejected Offers", totals.rejected, XCircle, "text-red-700"],
+            [
+              "Ready for Scheduling",
+              totals.readyForScheduling,
+              CalendarClock,
+              "text-emerald-700",
+            ],
+          ].map(([label, value, Icon, color]) => (
+            <div
+              key={label}
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-600">{label}</p>
+                <Icon size={22} className="text-blue-700" />
+              </div>
+              <p className={`mt-4 text-3xl font-black ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">Sent Offers</p>
-            <p className="mt-2 text-3xl font-bold text-blue-700">{sentCount}</p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Accepted Offers
-            </p>
-            <p className="mt-2 text-3xl font-bold text-emerald-700">
-              {acceptedCount}
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Rejected Offers
-            </p>
-            <p className="mt-2 text-3xl font-bold text-red-700">
-              {rejectedCount}
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Ready for Scheduling
-            </p>
-            <p className="mt-2 text-3xl font-bold text-emerald-700">
-              {readyForSchedulingCount}
-            </p>
-          </div>
-        </section>
-
-        <section className="mb-8 rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h3 className="text-xl font-bold">
+        <section className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-5">
+            <h2 className="text-xl font-bold">
               Accepted Offers for Scheduling
-            </h3>
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Accepted offers are ready to be passed to the scheduling module.
+              Accepted offers are ready to be passed to the vehicle availability
+              and scheduling modules.
             </p>
           </div>
 
-          {acceptedOffers.length === 0 ? (
-            <p className="px-6 py-8 text-slate-600">
-              No accepted offers are ready for scheduling yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-slate-700">
-                  <tr>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Offer ID
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Route
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Vehicle
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Amount
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Scheduling Status
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {acceptedOffers.map((offer) => (
-                    <tr key={offer.id} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-6 py-4 font-semibold">
-                        {offer.id}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-5 py-4">Offer ID</th>
+                  {isAdmin && <th className="px-5 py-4">Client</th>}
+                  <th className="px-5 py-4">Route</th>
+                  <th className="px-5 py-4">Vehicle</th>
+                  <th className="px-5 py-4">Amount</th>
+                  <th className="px-5 py-4">Scheduling Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleOffers
+                  .filter((offer) => getOfferStatus(offer) === "accepted")
+                  .map((offer) => (
+                    <tr
+                      key={offer.id || offer.offerId}
+                      className="border-t border-slate-100"
+                    >
+                      <td className="px-5 py-4 font-semibold">
+                        {offer.id || offer.offerId}
                       </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {offer.request.pickupLocation} to{" "}
-                        {offer.request.destination}
+                      {isAdmin && (
+                        <td className="px-5 py-4">
+                          <p className="font-semibold">
+                            {offer.clientName || "Unknown client"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {offer.clientEmail || "No email"}
+                          </p>
+                        </td>
+                      )}
+                      <td className="px-5 py-4">{getOfferRoute(offer)}</td>
+                      <td className="px-5 py-4">{getOfferVehicle(offer)}</td>
+                      <td className="px-5 py-4">
+                        {formatCurrency(getOfferAmount(offer))}
                       </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {offer.vehicleMatch}
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        KES {offer.pricing.totalAmount.toLocaleString()}
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                          {formatStatusLabel(offer.schedulingStatus)}
+                      <td className="px-5 py-4">
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                          {offer.schedulingStatus || "ready for scheduling"}
                         </span>
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+
+                {visibleOffers.filter(
+                  (offer) => getOfferStatus(offer) === "accepted",
+                ).length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={isAdmin ? "6" : "5"}
+                      className="px-5 py-6 text-center text-slate-600"
+                    >
+                      No accepted offers yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
 
-        <div className="grid gap-8 xl:grid-cols-[1fr_1.3fr]">
-          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-xl font-bold">Generated Offers</h3>
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">
+                {isAdmin ? "Generated Offers" : "My Generated Offers"}
+              </h2>
               <p className="mt-1 text-sm text-slate-600">
                 Search, filter, and select an offer to review.
               </p>
             </div>
 
-            <div className="grid gap-4 border-b border-slate-200 px-6 py-5 lg:grid-cols-[2fr_1fr_auto] lg:items-end">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Search Offers
-                </label>
+            <div className="grid gap-4 border-b border-slate-200 p-5 md:grid-cols-[1fr_170px_auto]">
+              <label className="flex items-center gap-3 rounded-md border border-slate-300 px-4 py-3">
+                <Search size={18} className="text-slate-400" />
                 <input
-                  type="text"
+                  type="search"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search route, offer ID, vehicle, or status"
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700"
+                  className="w-full bg-transparent outline-none"
+                  placeholder="Search route, offer ID, vehicle, or client"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Status Filter
-                </label>
+              <label className="flex items-center gap-3 rounded-md border border-slate-300 px-4 py-3">
+                <Filter size={18} className="text-slate-400" />
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700"
+                  className="w-full bg-transparent outline-none"
                 >
-                  {offerStatusFilters.map((status) => (
-                    <option key={status} value={status}>
-                      {status === "all"
-                        ? "All Offers"
-                        : formatStatusLabel(status)}
-                    </option>
-                  ))}
+                  <option value="all">All Offers</option>
+                  <option value="sent">Sent</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="rejected">Rejected</option>
                 </select>
-              </div>
+              </label>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-md bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-                  {filteredOffers.length} of {offers.length} shown
-                </span>
-
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="rounded-md border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Clear
-                </button>
+              <div className="rounded-md bg-slate-100 px-4 py-3 text-center text-sm font-bold text-slate-700">
+                {filteredOffers.length} of {visibleOffers.length} shown
               </div>
             </div>
 
-            {filteredOffers.length === 0 ? (
-              <p className="px-6 py-8 text-slate-600">
-                No offers match your current search or filter.
-              </p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {filteredOffers.map((offer) => (
+            <div className="max-h-[520px] overflow-y-auto">
+              {filteredOffers.map((offer) => {
+                const offerId = offer.id || offer.offerId;
+                const isSelected =
+                  selectedOffer?.id === offerId ||
+                  selectedOffer?.offerId === offerId;
+
+                return (
                   <button
-                    key={offer.id}
                     type="button"
-                    onClick={() => handleSelectOffer(offer)}
-                    className={`block w-full px-6 py-4 text-left hover:bg-slate-50 ${
-                      activeOffer?.id === offer.id ? "bg-blue-50" : ""
+                    key={offerId}
+                    onClick={() => setSelectedOffer(offer)}
+                    className={`block w-full border-b border-slate-100 p-5 text-left transition hover:bg-blue-50 ${
+                      isSelected ? "bg-blue-50" : "bg-white"
                     }`}
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="font-semibold">
-                          {offer.request.pickupLocation} to{" "}
-                          {offer.request.destination}
-                        </p>
+                        <p className="font-bold">{offerId}</p>
                         <p className="mt-1 text-sm text-slate-600">
-                          KES {offer.pricing.totalAmount.toLocaleString()} -{" "}
-                          {offer.vehicleMatch}
+                          {getOfferRoute(offer)}
                         </p>
+                        {isAdmin && (
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            {offer.clientName || "Unknown client"} -{" "}
+                            {offer.clientEmail || "No email"}
+                          </p>
+                        )}
                       </div>
 
                       <span
-                        className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                          offer.status,
+                        className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                          getOfferStatus(offer),
                         )}`}
                       >
-                        {formatStatusLabel(offer.status)}
+                        {getOfferStatus(offer)}
                       </span>
                     </div>
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+
+              {filteredOffers.length === 0 && (
+                <p className="p-6 text-center text-slate-600">
+                  No offers found for this account.
+                </p>
+              )}
+            </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-xl font-bold">Offer Details</h3>
+          <section className="h-fit rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">Offer Details</h2>
               <p className="mt-1 text-sm text-slate-600">
                 The client can accept or reject the selected offer.
               </p>
             </div>
 
-            {activeOffer ? (
-              <div className="p-6">
-                <div className="flex flex-col gap-4 rounded-md bg-blue-50 p-5 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-blue-700">
-                      Offer Amount
-                    </p>
-                    <p className="mt-1 text-3xl font-bold">
-                      KES {activeOffer.pricing.totalAmount.toLocaleString()}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Offer ID: {activeOffer.id}
-                    </p>
-                  </div>
+            {!selectedOffer ? (
+              <div className="p-6 text-slate-600">
+                Select an offer to view details.
+              </div>
+            ) : (
+              <div className="grid gap-5 p-6">
+                <div className="rounded-lg bg-blue-50 p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-blue-700">
+                        Offer Amount
+                      </p>
+                      <p className="mt-2 text-4xl font-black">
+                        {formatCurrency(getOfferAmount(selectedOffer))}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Offer ID: {selectedOffer.id || selectedOffer.offerId}
+                      </p>
+                    </div>
 
-                  <span
-                    className={`w-fit rounded-full px-4 py-2 text-sm font-semibold ${getStatusBadgeClass(
-                      activeOffer.status,
-                    )}`}
-                  >
-                    {formatStatusLabel(activeOffer.status)}
-                  </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                        getOfferStatus(selectedOffer),
+                      )}`}
+                    >
+                      {getOfferStatus(selectedOffer)}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Pickup Location</p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.request.pickupLocation}
+                {isAdmin && (
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="text-blue-700" size={22} />
+                      <div>
+                        <p className="font-bold">
+                          {selectedOffer.clientName || "Unknown client"}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {selectedOffer.clientEmail || "No email"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <Truck className="text-blue-700" size={24} />
+                    <p className="mt-3 text-sm text-slate-500">Vehicle Match</p>
+                    <p className="font-bold">
+                      {getOfferVehicle(selectedOffer)}
                     </p>
                   </div>
 
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Destination</p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.request.destination}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Package</p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.request.packageType} -{" "}
-                      {activeOffer.request.weight} kg
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Pickup Schedule</p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.request.pickupDate} at{" "}
-                      {activeOffer.request.pickupTime}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Vehicle Match</p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.vehicleMatch}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">
-                      Distance / Duration
-                    </p>
-                    <p className="mt-1 font-semibold">
-                      {activeOffer.estimatedDistance} km -{" "}
-                      {activeOffer.estimatedDuration}
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <BadgeDollarSign className="text-blue-700" size={24} />
+                    <p className="mt-3 text-sm text-slate-500">Service Fee</p>
+                    <p className="font-bold">
+                      {formatCurrency(selectedOffer.serviceFee || 0)}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-md border border-slate-200 p-4">
-                  <p className="text-sm text-slate-600">Offer Notes</p>
-                  <p className="mt-1 font-semibold">{activeOffer.notes}</p>
-                </div>
-
-                <div className="mt-6 rounded-md border border-slate-200 p-4">
-                  <p className="text-sm text-slate-600">Scheduling Status</p>
-                  <p className="mt-1 font-semibold">
-                    {formatStatusLabel(activeOffer.schedulingStatus)}
+                <div className="rounded-lg border border-slate-200 p-5">
+                  <p className="text-sm text-slate-500">Route</p>
+                  <p className="mt-1 font-bold">
+                    {getOfferRoute(selectedOffer)}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {selectedOffer.distance || "485 km"} -{" "}
+                    {selectedOffer.duration || "7h 20m"}
                   </p>
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-200 pt-6">
+                <div className="rounded-lg border border-slate-200 p-5">
+                  <p className="text-sm text-slate-500">Offer Notes</p>
+                  <p className="mt-1 font-semibold">
+                    {selectedOffer.notes ||
+                      "Offer includes pickup, transportation, handling, and delivery coordination."}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    disabled={activeOffer.status === "accepted"}
-                    onClick={() => handleOfferResponse(activeOffer, "accepted")}
-                    className="rounded-md bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                    onClick={() =>
+                      handleOfferDecision(
+                        selectedOffer.id || selectedOffer.offerId,
+                        "accepted",
+                      )
+                    }
+                    disabled={getOfferStatus(selectedOffer) === "accepted"}
+                    className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
+                    <CheckCircle2 size={18} />
                     Accept Offer
                   </button>
 
                   <button
                     type="button"
-                    disabled={activeOffer.status === "rejected"}
-                    onClick={() => handleOfferResponse(activeOffer, "rejected")}
-                    className="rounded-md border border-red-600 px-5 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                    onClick={() =>
+                      handleOfferDecision(
+                        selectedOffer.id || selectedOffer.offerId,
+                        "rejected",
+                      )
+                    }
+                    disabled={getOfferStatus(selectedOffer) === "rejected"}
+                    className="inline-flex items-center gap-2 rounded-md bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
+                    <XCircle size={18} />
                     Reject Offer
                   </button>
                 </div>
               </div>
-            ) : (
-              <p className="p-6 text-slate-600">
-                Select an offer to review its details.
-              </p>
             )}
           </section>
         </div>

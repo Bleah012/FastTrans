@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import AdminAreaNotice from "../components/AdminAreaNotice";
+import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 
 const defaultRouteData = {
   pickupLocation: "Nairobi, Kenya",
@@ -69,8 +69,13 @@ function VehicleAvailabilityPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("");
 
-  // Loads saved vehicle bookings and accepted offers when the page opens.
+  const canAccessAdminArea = hasAdminAccess();
+
   useEffect(() => {
+    if (!canAccessAdminArea) {
+      return;
+    }
+
     const savedBookings =
       JSON.parse(localStorage.getItem(bookingStorageKey)) || [];
     const savedOffers = JSON.parse(localStorage.getItem(offerStorageKey)) || [];
@@ -83,14 +88,12 @@ function VehicleAvailabilityPage() {
 
     setBookings(savedBookings);
     setAcceptedOffers(readyOffers);
-  }, []);
+  }, [canAccessAdminArea]);
 
-  // Gets values from either a direct offer object or its nested request object.
   const getOfferValue = (offer, fieldName, fallback = "") => {
     return offer[fieldName] || offer.request?.[fieldName] || fallback;
   };
 
-  // Gets package weight from the accepted offer, supporting different saved field names.
   const getOfferWeight = (offer) => {
     return (
       offer.weight ||
@@ -101,7 +104,6 @@ function VehicleAvailabilityPage() {
     );
   };
 
-  // Updates route form fields as Nathaniel enters trip details.
   const handleChange = (event) => {
     const { name, value } = event.target;
 
@@ -119,7 +121,6 @@ function VehicleAvailabilityPage() {
     setStatusType("");
   };
 
-  // Loads an accepted client offer into the vehicle availability form.
   const handleLoadAcceptedOffer = (offer) => {
     setRouteData({
       pickupLocation: getOfferValue(offer, "pickupLocation"),
@@ -137,7 +138,6 @@ function VehicleAvailabilityPage() {
     setStatusType("success");
   };
 
-  // Checks required route fields before calculating availability.
   const validateRouteForm = () => {
     const newErrors = {};
 
@@ -165,7 +165,6 @@ function VehicleAvailabilityPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Chooses a suitable vehicle type using package type and package weight.
   const getRecommendedVehicle = () => {
     const weight = Number(routeData.packageWeight) || 0;
 
@@ -178,7 +177,6 @@ function VehicleAvailabilityPage() {
     return "Pickup";
   };
 
-  // Calculates route distance and duration using known route examples.
   const handleCalculateRoute = () => {
     if (!validateRouteForm()) {
       setStatusMessage("Please fix the highlighted fields before calculating.");
@@ -205,7 +203,6 @@ function VehicleAvailabilityPage() {
     setStatusType("success");
   };
 
-  // Checks whether a vehicle is already booked for the selected pickup date and time.
   const isVehicleBookedForSchedule = (vehicleId) => {
     return bookings.some(
       (booking) =>
@@ -215,12 +212,10 @@ function VehicleAvailabilityPage() {
     );
   };
 
-  // Checks whether a vehicle matches the calculated recommended type.
   const isRecommendedVehicle = (vehicle) => {
     return routeResult && vehicle.type === routeResult.recommendedVehicle;
   };
 
-  // Saves a vehicle booking and blocks duplicate bookings for the same vehicle schedule.
   const handleBookVehicle = (vehicle) => {
     if (!routeResult) {
       setStatusMessage("Calculate the route before booking a vehicle.");
@@ -271,13 +266,25 @@ function VehicleAvailabilityPage() {
     setStatusType("success");
   };
 
-  // Gives vehicle status a clear visual badge.
   const getVehicleStatusClass = (status) => {
     if (status === "available") return "bg-emerald-50 text-emerald-700";
     if (status === "booked") return "bg-amber-50 text-amber-700";
 
     return "bg-red-50 text-red-700";
   };
+
+  if (!canAccessAdminArea) {
+    return (
+      <main className="px-6 py-8 text-slate-950">
+        <section className="mx-auto max-w-7xl">
+          <AdminAreaNotice
+            title="Vehicle Availability Access"
+            description="Login as an admin or manager before assigning vehicles or changing availability decisions."
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="px-6 py-8 text-slate-950">

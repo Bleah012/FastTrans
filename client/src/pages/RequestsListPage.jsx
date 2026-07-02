@@ -1,36 +1,53 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  CheckCircle2,
+  ClipboardList,
+  Eye,
+  Filter,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { API_ENDPOINTS } from "../config/api";
 import { getAuthToken, getAuthUser } from "../config/auth";
 
-function RequestsListPage() {
+function RequestsListPage({ onNewRequest }) {
   const [requests, setRequests] = useState([]);
-  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [statusMessage, setStatusMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [statusType, setStatusType] = useState("success");
   const [isLoading, setIsLoading] = useState(false);
-  const [updatingId, setUpdatingId] = useState("");
-  const [authUser, setAuthUser] = useState(null);
+  const [actionId, setActionId] = useState("");
 
-  const canUpdateStatus =
-    authUser?.role === "admin" || authUser?.role === "manager";
-  const canDeleteRequest = authUser?.role === "admin";
+  const authUser = getAuthUser();
+  const isAdmin = authUser?.role === "admin" || authUser?.role === "manager";
+  const canDelete = authUser?.role === "admin";
 
-  // Loads the logged-in user from browser storage.
-  useEffect(() => {
-    setAuthUser(getAuthUser());
-  }, []);
+  const showStatus = (message, type = "success") => {
+    setStatusMessage(message);
+    setStatusType(type);
+  };
 
-  // Fetches all transport requests from the backend.
+  const buildRequestsUrl = () => {
+    if (authUser && !isAdmin) {
+      return `${API_ENDPOINTS.requests}?clientEmail=${encodeURIComponent(
+        authUser.email,
+      )}`;
+    }
+
+    return API_ENDPOINTS.requests;
+  };
+
   const loadRequests = async () => {
     setIsLoading(true);
     setStatusMessage("");
-    setErrorMessage("");
 
     try {
-      const response = await fetch(API_ENDPOINTS.requests);
+      const response = await fetch(buildRequestsUrl());
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -38,9 +55,14 @@ function RequestsListPage() {
       }
 
       setRequests(result.data || []);
-      setStatusMessage("Requests loaded successfully.");
+      setSelectedRequest(result.data?.[0] || null);
+      showStatus(
+        isAdmin
+          ? "All request records loaded successfully."
+          : "Your request records loaded successfully.",
+      );
     } catch (error) {
-      setErrorMessage(error.message || "Unable to load requests.");
+      showStatus(error.message || "Failed to load requests.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -50,27 +72,19 @@ function RequestsListPage() {
     loadRequests();
   }, []);
 
-  const getRequestId = (request) => request.id || request._id;
-
-  const selectedRequest = useMemo(() => {
-    return requests.find(
-      (request) => getRequestId(request) === selectedRequestId,
-    );
-  }, [requests, selectedRequestId]);
-
   const filteredRequests = useMemo(() => {
-    return requests.filter((request) => {
-      const searchText = [
-        request.pickupLocation,
-        request.destination,
-        request.packageType,
-        request.instructions,
-        request.status,
-      ]
-        .join(" ")
-        .toLowerCase();
+    const normalizedSearch = searchTerm.toLowerCase().trim();
 
-      const matchesSearch = searchText.includes(searchTerm.toLowerCase());
+    return requests.filter((request) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        request.pickupLocation?.toLowerCase().includes(normalizedSearch) ||
+        request.destination?.toLowerCase().includes(normalizedSearch) ||
+        request.packageType?.toLowerCase().includes(normalizedSearch) ||
+        request.status?.toLowerCase().includes(normalizedSearch) ||
+        request.clientName?.toLowerCase().includes(normalizedSearch) ||
+        request.clientEmail?.toLowerCase().includes(normalizedSearch);
+
       const matchesStatus =
         statusFilter === "all" || request.status === statusFilter;
 
@@ -78,18 +92,42 @@ function RequestsListPage() {
     });
   }, [requests, searchTerm, statusFilter]);
 
-  // Sends the JWT token when changing protected request status.
-  const handleStatusUpdate = async (requestId, status) => {
-    const token = getAuthToken();
+  const totals = useMemo(
+    () => ({
+      total: requests.length,
+      pending: requests.filter((request) => request.status === "pending")
+        .length,
+      approved: requests.filter((request) => request.status === "approved")
+        .length,
+      rejected: requests.filter((request) => request.status === "rejected")
+        .length,
+    }),
+    [requests],
+  );
 
-    if (!token) {
-      setErrorMessage("Please login as an admin or manager first.");
+  const getStatusClass = (status) => {
+    if (status === "approved") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (status === "rejected") {
+      return "bg-red-50 text-red-700";
+    }
+
+    return "bg-amber-50 text-amber-700";
+  };
+
+  const handleUpdateStatus = async (requestId, status) => {
+    if (!isAdmin) {
+      showStatus(
+        "Only an admin or manager can update request status.",
+        "error",
+      );
       return;
     }
 
-    setUpdatingId(requestId);
-    setStatusMessage("");
-    setErrorMessage("");
+    const authToken = getAuthToken();
+    setActionId(`${requestId}-${status}`);
 
     try {
       const response = await fetch(
@@ -98,7 +136,7 @@ function RequestsListPage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({ status }),
         },
@@ -110,37 +148,34 @@ function RequestsListPage() {
         throw new Error(result.message || "Failed to update request status.");
       }
 
-      setRequests((currentRequests) =>
-        currentRequests.map((request) =>
-          getRequestId(request) === requestId ? result.data : request,
-        ),
+      const updatedRequests = requests.map((request) =>
+        request.id === requestId ? result.data : request,
       );
-      setStatusMessage("Request status updated successfully.");
+
+      setRequests(updatedRequests);
+      setSelectedRequest(result.data);
+      showStatus("Request status updated successfully.");
     } catch (error) {
-      setErrorMessage(error.message || "Unable to update request status.");
+      showStatus(error.message || "Failed to update request status.", "error");
     } finally {
-      setUpdatingId("");
+      setActionId("");
     }
   };
 
-  // Sends the JWT token when deleting a protected request.
   const handleDeleteRequest = async (requestId) => {
-    const token = getAuthToken();
-
-    if (!token) {
-      setErrorMessage("Please login as an admin first.");
+    if (!canDelete) {
+      showStatus("Only an admin can delete a request.", "error");
       return;
     }
 
-    setUpdatingId(requestId);
-    setStatusMessage("");
-    setErrorMessage("");
+    const authToken = getAuthToken();
+    setActionId(`${requestId}-delete`);
 
     try {
       const response = await fetch(`${API_ENDPOINTS.requests}/${requestId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${authToken}`,
         },
       });
 
@@ -150,320 +185,342 @@ function RequestsListPage() {
         throw new Error(result.message || "Failed to delete request.");
       }
 
-      setRequests((currentRequests) =>
-        currentRequests.filter(
-          (request) => getRequestId(request) !== requestId,
-        ),
+      const updatedRequests = requests.filter(
+        (request) => request.id !== requestId,
       );
 
-      if (selectedRequestId === requestId) {
-        setSelectedRequestId("");
-      }
-
-      setStatusMessage("Request deleted successfully.");
+      setRequests(updatedRequests);
+      setSelectedRequest(updatedRequests[0] || null);
+      showStatus("Request deleted successfully.");
     } catch (error) {
-      setErrorMessage(error.message || "Unable to delete request.");
+      showStatus(error.message || "Failed to delete request.", "error");
     } finally {
-      setUpdatingId("");
+      setActionId("");
     }
   };
 
-  const statusCounts = useMemo(() => {
-    return requests.reduce(
-      (counts, request) => ({
-        ...counts,
-        [request.status]: (counts[request.status] || 0) + 1,
-      }),
-      { pending: 0, approved: 0, rejected: 0 },
-    );
-  }, [requests]);
+  const formatSchedule = (request) =>
+    `${request.pickupDate || "No date"} at ${request.pickupTime || "No time"}`;
 
   return (
-    <main className="min-h-[calc(100vh-96px)] bg-slate-50 px-6 py-8">
+    <main className="px-6 py-8 text-slate-950">
       <section className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-              Request Records
+              {isAdmin ? "Request Records" : "My Request Records"}
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-950">
-              Submitted Transport Requests
+            <h1 className="mt-2 text-3xl font-black">
+              {isAdmin
+                ? "Submitted Transport Requests"
+                : "My Submitted Transport Requests"}
             </h1>
             <p className="mt-2 text-slate-600">
-              Review client transport requests and manage protected admin
-              actions.
+              {isAdmin
+                ? "Review all client transport requests and manage protected admin actions."
+                : "Review only the transport requests submitted using your account."}
             </p>
+            {authUser && (
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                Signed in as {authUser.name} ({authUser.email})
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={loadRequests}
-              className="rounded-md border border-blue-700 px-5 py-3 font-semibold text-blue-700 transition hover:bg-blue-50"
+              className="inline-flex items-center gap-2 rounded-md border border-blue-700 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
             >
-              Refresh
+              <RefreshCw size={18} />
+              {isLoading ? "Refreshing..." : "Refresh"}
             </button>
-            <Link
-              to="/request"
-              className="rounded-md bg-blue-700 px-5 py-3 font-semibold text-white transition hover:bg-blue-800"
-            >
-              New Request
-            </Link>
-            {!authUser && (
-              <Link
-                to="/login"
-                className="rounded-md border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100"
+
+            {!isAdmin && (
+              <button
+                type="button"
+                onClick={onNewRequest}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800"
               >
-                Admin Login
-              </Link>
+                <ClipboardList size={18} />
+                New Request
+              </button>
             )}
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Total</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">
-              {requests.length}
+        <div className="mb-6 grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-600">Total</p>
+            <p className="mt-3 text-3xl font-bold">{totals.total}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-600">Pending</p>
+            <p className="mt-3 text-3xl font-bold text-amber-700">
+              {totals.pending}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Pending</p>
-            <p className="mt-2 text-3xl font-bold text-amber-600">
-              {statusCounts.pending}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-600">Approved</p>
+            <p className="mt-3 text-3xl font-bold text-emerald-700">
+              {totals.approved}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Approved</p>
-            <p className="mt-2 text-3xl font-bold text-emerald-600">
-              {statusCounts.approved}
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Rejected</p>
-            <p className="mt-2 text-3xl font-bold text-red-600">
-              {statusCounts.rejected}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-600">Rejected</p>
+            <p className="mt-3 text-3xl font-bold text-red-700">
+              {totals.rejected}
             </p>
           </div>
         </div>
 
         {statusMessage && (
-          <div className="mt-6 rounded-md bg-emerald-50 px-4 py-3 font-semibold text-emerald-700">
+          <div
+            className={`mb-6 rounded-md px-4 py-3 text-sm font-semibold ${
+              statusType === "success"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
             {statusMessage}
           </div>
         )}
 
-        {errorMessage && (
-          <div className="mt-6 rounded-md bg-red-50 px-4 py-3 font-semibold text-red-700">
-            {errorMessage}
-          </div>
-        )}
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_220px]">
+          <label className="flex items-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-3">
+            <Search size={18} className="text-slate-400" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="w-full bg-transparent outline-none"
+              placeholder={
+                isAdmin
+                  ? "Search by client, pickup, destination, package, or status"
+                  : "Search your requests by pickup, destination, package, or status"
+              }
+            />
+          </label>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_220px]">
-          <input
-            className="rounded-md border border-slate-300 bg-white px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-            type="search"
-            placeholder="Search by pickup, destination, package, or status"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-
-          <select
-            className="rounded-md border border-slate-300 bg-white px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+          <label className="flex items-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-3">
+            <Filter size={18} className="text-slate-400" />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="w-full bg-transparent outline-none"
+            >
+              <option value="all">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </label>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-bold text-slate-950">
-              Transport Request List
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {authUser
-                ? `Signed in as ${authUser.name} (${authUser.role})`
-                : "Login is required for protected admin actions."}
-            </p>
-          </div>
+        <div className="grid gap-6 xl:grid-cols-[1fr_0.45fr]">
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">
+                {isAdmin
+                  ? "Transport Request List"
+                  : "My Transport Request List"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {isAdmin
+                  ? "Admin and manager accounts can approve or reject requests."
+                  : "Only requests connected to your account are shown here."}
+              </p>
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left">
-              <thead className="bg-slate-100 text-sm text-slate-700">
-                <tr>
-                  <th className="px-6 py-4">Pickup</th>
-                  <th className="px-6 py-4">Destination</th>
-                  <th className="px-6 py-4">Package</th>
-                  <th className="px-6 py-4">Weight</th>
-                  <th className="px-6 py-4">Schedule</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-700">
                   <tr>
-                    <td className="px-6 py-8 text-slate-500" colSpan="7">
-                      Loading requests...
-                    </td>
+                    {isAdmin && <th className="px-5 py-4">Client</th>}
+                    <th className="px-5 py-4">Pickup</th>
+                    <th className="px-5 py-4">Destination</th>
+                    <th className="px-5 py-4">Package</th>
+                    <th className="px-5 py-4">Weight</th>
+                    <th className="px-5 py-4">Schedule</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Actions</th>
                   </tr>
-                )}
+                </thead>
+                <tbody>
+                  {filteredRequests.map((request) => (
+                    <tr key={request.id} className="border-t border-slate-100">
+                      {isAdmin && (
+                        <td className="px-5 py-4">
+                          <p className="font-semibold">
+                            {request.clientName || "Unknown client"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {request.clientEmail || "No email"}
+                          </p>
+                        </td>
+                      )}
+                      <td className="px-5 py-4 font-semibold">
+                        {request.pickupLocation}
+                      </td>
+                      <td className="px-5 py-4">{request.destination}</td>
+                      <td className="px-5 py-4">{request.packageType}</td>
+                      <td className="px-5 py-4">{request.weight} kg</td>
+                      <td className="px-5 py-4">{formatSchedule(request)}</td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                            request.status,
+                          )}`}
+                        >
+                          {request.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRequest(request)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            <Eye size={14} />
+                            Details
+                          </button>
 
-                {!isLoading && filteredRequests.length === 0 && (
-                  <tr>
-                    <td className="px-6 py-8 text-slate-500" colSpan="7">
-                      No matching requests found.
-                    </td>
-                  </tr>
-                )}
+                          {isAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateStatus(request.id, "approved")
+                                }
+                                disabled={
+                                  request.status === "approved" ||
+                                  actionId === `${request.id}-approved`
+                                }
+                                className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                              >
+                                <CheckCircle2 size={14} />
+                                Approve
+                              </button>
 
-                {!isLoading &&
-                  filteredRequests.map((request) => {
-                    const requestId = getRequestId(request);
-                    const isUpdating = updatingId === requestId;
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateStatus(request.id, "rejected")
+                                }
+                                disabled={
+                                  request.status === "rejected" ||
+                                  actionId === `${request.id}-rejected`
+                                }
+                                className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                              >
+                                <XCircle size={14} />
+                                Reject
+                              </button>
+                            </>
+                          )}
 
-                    return (
-                      <tr
-                        key={requestId}
-                        className="border-t border-slate-100 text-sm"
-                      >
-                        <td className="px-6 py-4 font-medium text-slate-950">
-                          {request.pickupLocation}
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          {request.destination}
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          {request.packageType}
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          {request.weight} kg
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          {request.pickupDate} at {request.pickupTime}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold uppercase text-amber-700">
-                            {request.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-2">
+                          {canDelete && (
                             <button
                               type="button"
-                              onClick={() => setSelectedRequestId(requestId)}
-                              className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                              onClick={() => handleDeleteRequest(request.id)}
+                              disabled={actionId === `${request.id}-delete`}
+                              className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400"
                             >
-                              Details
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!canUpdateStatus || isUpdating}
-                              onClick={() =>
-                                handleStatusUpdate(requestId, "approved")
-                              }
-                              className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!canUpdateStatus || isUpdating}
-                              onClick={() =>
-                                handleStatusUpdate(requestId, "rejected")
-                              }
-                              className="rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!canDeleteRequest || isUpdating}
-                              onClick={() => handleDeleteRequest(requestId)}
-                              className="rounded-md border border-red-300 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                            >
+                              <Trash2 size={14} />
                               Delete
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
 
-        {selectedRequest && (
-          <section className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-950">
-                  Request Details
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  ID: {getRequestId(selectedRequest)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedRequestId("")}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <DetailItem
-                label="Pickup"
-                value={selectedRequest.pickupLocation}
-              />
-              <DetailItem
-                label="Destination"
-                value={selectedRequest.destination}
-              />
-              <DetailItem label="Package" value={selectedRequest.packageType} />
-              <DetailItem
-                label="Weight"
-                value={`${selectedRequest.weight} kg`}
-              />
-              <DetailItem
-                label="Pickup Date"
-                value={selectedRequest.pickupDate}
-              />
-              <DetailItem
-                label="Pickup Time"
-                value={selectedRequest.pickupTime}
-              />
-            </div>
-
-            <div className="mt-5 rounded-md bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-700">
-                Special Instructions
-              </p>
-              <p className="mt-2 text-slate-600">
-                {selectedRequest.instructions || "No instructions provided."}
-              </p>
+                  {filteredRequests.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={isAdmin ? "8" : "7"}
+                        className="px-5 py-8 text-center text-slate-600"
+                      >
+                        No matching transport requests found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
-        )}
+
+          <aside className="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck size={20} className="text-blue-700" />
+              <h2 className="text-xl font-bold">Request Details</h2>
+            </div>
+
+            {!selectedRequest ? (
+              <p className="text-sm text-slate-600">
+                Select a request to inspect the full details.
+              </p>
+            ) : (
+              <div className="space-y-4 text-sm">
+                {isAdmin && (
+                  <div>
+                    <p className="text-slate-500">Client</p>
+                    <p className="font-semibold">
+                      {selectedRequest.clientName || "Unknown client"}
+                    </p>
+                    <p className="text-slate-600">
+                      {selectedRequest.clientEmail || "No email"}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-slate-500">Route</p>
+                  <p className="font-semibold">
+                    {selectedRequest.pickupLocation} to{" "}
+                    {selectedRequest.destination}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Package</p>
+                  <p className="font-semibold">
+                    {selectedRequest.packageType} - {selectedRequest.weight} kg
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Pickup</p>
+                  <p className="font-semibold">
+                    {formatSchedule(selectedRequest)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Status</p>
+                  <span
+                    className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-bold uppercase ${getStatusClass(
+                      selectedRequest.status,
+                    )}`}
+                  >
+                    {selectedRequest.status}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Instructions</p>
+                  <p className="font-semibold">
+                    {selectedRequest.instructions || "No special instructions."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
       </section>
     </main>
-  );
-}
-
-function DetailItem({ label, value }) {
-  return (
-    <div className="rounded-md border border-slate-200 p-4">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 font-bold text-slate-950">{value}</p>
-    </div>
   );
 }
 

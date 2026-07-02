@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
-import AdminAreaNotice from "../components/AdminAreaNotice";
+import {
+  CalendarCheck,
+  ClipboardList,
+  Pencil,
+  Plus,
+  Trash2,
+  Truck,
+  Wrench,
+} from "lucide-react";
+import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 
 const bookingStorageKey = "fasttrans-vehicle-bookings";
 const scheduleStorageKey = "fasttrans-confirmed-schedules";
 const vehicleStorageKey = "fasttrans-admin-vehicles";
 
 const defaultVehicleForm = {
-  id: "",
   type: "",
   plateNumber: "",
   capacityKg: "",
@@ -51,6 +59,15 @@ const defaultVehicles = [
   },
 ];
 
+function readStorage(key, fallbackValue) {
+  try {
+    const savedValue = localStorage.getItem(key);
+    return savedValue ? JSON.parse(savedValue) : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
+
 function SchedulingAdminPage() {
   const [vehicleBookings, setVehicleBookings] = useState([]);
   const [confirmedSchedules, setConfirmedSchedules] = useState([]);
@@ -58,217 +75,283 @@ function SchedulingAdminPage() {
   const [vehicleForm, setVehicleForm] = useState(defaultVehicleForm);
   const [editingVehicleId, setEditingVehicleId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
-  const [statusType, setStatusType] = useState("");
+  const [statusType, setStatusType] = useState("success");
 
-  // Loads confirmed vehicle bookings, saved schedules, and managed vehicles from browser storage.
+  const canAccessAdminArea = hasAdminAccess();
+
   useEffect(() => {
-    const savedBookings =
-      JSON.parse(localStorage.getItem(bookingStorageKey)) || [];
-    const savedSchedules =
-      JSON.parse(localStorage.getItem(scheduleStorageKey)) || [];
-    const savedVehicles =
-      JSON.parse(localStorage.getItem(vehicleStorageKey)) || defaultVehicles;
+    if (!canAccessAdminArea) {
+      return;
+    }
+
+    const savedBookings = readStorage(bookingStorageKey, []);
+    const savedSchedules = readStorage(scheduleStorageKey, []);
+    const savedVehicles = readStorage(vehicleStorageKey, defaultVehicles);
 
     setVehicleBookings(savedBookings);
     setConfirmedSchedules(savedSchedules);
     setManagedVehicles(savedVehicles);
-  }, []);
+  }, [canAccessAdminArea]);
 
-  // Saves vehicle changes to state and localStorage.
+  const showStatus = (message, type = "success") => {
+    setStatusMessage(message);
+    setStatusType(type);
+  };
+
+  const saveSchedules = (schedules) => {
+    setConfirmedSchedules(schedules);
+    localStorage.setItem(scheduleStorageKey, JSON.stringify(schedules));
+  };
+
   const saveVehicles = (vehicles) => {
     setManagedVehicles(vehicles);
     localStorage.setItem(vehicleStorageKey, JSON.stringify(vehicles));
   };
 
-  // Gives each schedule status a clear visual badge.
+  const getBookingId = (booking) => booking.id || booking.bookingId;
+
+  const getBookingVehicle = (booking) => ({
+    type:
+      booking.vehicleType ||
+      booking.vehicleMatch ||
+      booking.selectedVehicle ||
+      booking.vehicle ||
+      "Vehicle",
+    plate:
+      booking.plateNumber ||
+      booking.vehiclePlate ||
+      booking.plate ||
+      booking.registrationNumber ||
+      "Unassigned",
+  });
+
+  const isBookingScheduled = (bookingId) =>
+    confirmedSchedules.some((schedule) => schedule.bookingId === bookingId);
+
   const getStatusClass = (status) => {
-    if (status === "scheduled") return "bg-emerald-50 text-emerald-700";
-    if (status === "in-progress") return "bg-blue-50 text-blue-700";
-    if (status === "completed") return "bg-slate-100 text-slate-700";
-    if (status === "booked") return "bg-amber-50 text-amber-700";
-    return "bg-slate-100 text-slate-700";
+    if (status === "scheduled") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (status === "completed") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "cancelled") {
+      return "bg-red-50 text-red-700";
+    }
+
+    return "bg-amber-50 text-amber-700";
   };
 
-  // Gives vehicle availability a clear visual badge.
   const getAvailabilityClass = (availability) => {
-    if (availability === "available") return "bg-emerald-50 text-emerald-700";
-    if (availability === "booked") return "bg-amber-50 text-amber-700";
-    if (availability === "maintenance") return "bg-red-50 text-red-700";
-    return "bg-slate-100 text-slate-700";
+    if (availability === "available") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (availability === "booked") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    return "bg-amber-50 text-amber-700";
   };
 
-  // Checks whether a vehicle booking has already become a confirmed schedule.
-  const isBookingScheduled = (bookingId) => {
-    return confirmedSchedules.some(
-      (schedule) => schedule.bookingId === bookingId,
-    );
-  };
-
-  // Confirms a vehicle booking as a scheduled transport request.
   const handleConfirmSchedule = (booking) => {
-    if (isBookingScheduled(booking.id)) {
-      setStatusMessage(
-        "This booking has already been confirmed for scheduling.",
-      );
-      setStatusType("error");
+    const bookingId = getBookingId(booking);
+
+    if (!bookingId || isBookingScheduled(bookingId)) {
+      showStatus("This booking has already been scheduled.", "error");
       return;
     }
 
-    const newSchedule = {
-      id: Date.now().toString(),
-      bookingId: booking.id,
-      sourceOfferId: booking.sourceOfferId,
-      vehicleId: booking.vehicleId,
-      vehicleType: booking.vehicleType,
-      plateNumber: booking.plateNumber,
+    const bookingVehicle = getBookingVehicle(booking);
+
+    const schedule = {
+      id: `SCHEDULE-${Date.now()}`,
+      bookingId,
+      vehicleType: bookingVehicle.type,
+      plateNumber: bookingVehicle.plate,
       pickupLocation: booking.pickupLocation,
       destination: booking.destination,
       packageType: booking.packageType,
-      packageWeight: booking.packageWeight,
+      weight: booking.weight,
       pickupDate: booking.pickupDate,
       pickupTime: booking.pickupTime,
-      distance: booking.distance,
-      duration: booking.duration,
+      distance: booking.distance || booking.estimatedDistance || "485 km",
+      duration: booking.duration || booking.estimatedDuration || "7h 20m",
       status: "scheduled",
       createdAt: new Date().toISOString(),
     };
 
-    const updatedSchedules = [newSchedule, ...confirmedSchedules];
+    saveSchedules([schedule, ...confirmedSchedules]);
 
-    setConfirmedSchedules(updatedSchedules);
-    localStorage.setItem(scheduleStorageKey, JSON.stringify(updatedSchedules));
+    const updatedVehicles = managedVehicles.map((vehicle) =>
+      vehicle.plateNumber === bookingVehicle.plate
+        ? { ...vehicle, availability: "booked" }
+        : vehicle,
+    );
 
-    setStatusMessage("Transport booking confirmed and scheduled successfully.");
-    setStatusType("success");
+    saveVehicles(updatedVehicles);
+    showStatus("Transport booking scheduled successfully.");
   };
 
-  // Updates the progress status of a confirmed transport schedule.
   const handleUpdateScheduleStatus = (scheduleId, newStatus) => {
+    const selectedSchedule = confirmedSchedules.find(
+      (schedule) => schedule.id === scheduleId,
+    );
+
     const updatedSchedules = confirmedSchedules.map((schedule) =>
       schedule.id === scheduleId
-        ? {
-            ...schedule,
-            status: newStatus,
-            updatedAt: new Date().toISOString(),
-          }
+        ? { ...schedule, status: newStatus }
         : schedule,
     );
 
-    setConfirmedSchedules(updatedSchedules);
-    localStorage.setItem(scheduleStorageKey, JSON.stringify(updatedSchedules));
+    saveSchedules(updatedSchedules);
 
-    setStatusMessage(`Schedule marked as ${newStatus}.`);
-    setStatusType("success");
+    if (
+      selectedSchedule &&
+      (newStatus === "completed" || newStatus === "cancelled")
+    ) {
+      const updatedVehicles = managedVehicles.map((vehicle) =>
+        vehicle.plateNumber === selectedSchedule.plateNumber
+          ? { ...vehicle, availability: "available" }
+          : vehicle,
+      );
+
+      saveVehicles(updatedVehicles);
+    }
+
+    showStatus(`Schedule marked as ${newStatus}.`);
   };
 
-  // Updates vehicle form fields for creating and editing vehicles.
   const handleVehicleFormChange = (event) => {
     const { name, value } = event.target;
-
     setVehicleForm((currentForm) => ({
       ...currentForm,
       [name]: value,
     }));
   };
 
-  // Clears the vehicle form and exits edit mode.
   const resetVehicleForm = () => {
     setVehicleForm(defaultVehicleForm);
     setEditingVehicleId("");
   };
 
-  // Creates a new vehicle or updates an existing vehicle.
   const handleSubmitVehicle = (event) => {
     event.preventDefault();
 
-    const cleanVehicle = {
-      id: vehicleForm.id.trim().toUpperCase(),
-      type: vehicleForm.type.trim(),
-      plateNumber: vehicleForm.plateNumber.trim().toUpperCase(),
+    if (
+      !vehicleForm.type ||
+      !vehicleForm.plateNumber ||
+      !vehicleForm.capacityKg
+    ) {
+      showStatus("Please provide all vehicle details.", "error");
+      return;
+    }
+
+    if (editingVehicleId) {
+      const updatedVehicles = managedVehicles.map((vehicle) =>
+        vehicle.id === editingVehicleId
+          ? {
+              ...vehicle,
+              type: vehicleForm.type,
+              plateNumber: vehicleForm.plateNumber,
+              capacityKg: Number(vehicleForm.capacityKg),
+              availability: vehicleForm.availability,
+            }
+          : vehicle,
+      );
+
+      saveVehicles(updatedVehicles);
+      resetVehicleForm();
+      showStatus("Vehicle updated successfully.");
+      return;
+    }
+
+    const newVehicle = {
+      id: `VH-${Date.now()}`,
+      type: vehicleForm.type,
+      plateNumber: vehicleForm.plateNumber,
       capacityKg: Number(vehicleForm.capacityKg),
       availability: vehicleForm.availability,
     };
 
-    if (
-      !cleanVehicle.id ||
-      !cleanVehicle.type ||
-      !cleanVehicle.plateNumber ||
-      cleanVehicle.capacityKg <= 0
-    ) {
-      setStatusMessage("Please complete all vehicle fields correctly.");
-      setStatusType("error");
-      return;
-    }
-
-    if (!editingVehicleId) {
-      const vehicleExists = managedVehicles.some(
-        (vehicle) => vehicle.id === cleanVehicle.id,
-      );
-
-      if (vehicleExists) {
-        setStatusMessage("A vehicle with this ID already exists.");
-        setStatusType("error");
-        return;
-      }
-
-      saveVehicles([cleanVehicle, ...managedVehicles]);
-      setStatusMessage("Vehicle added successfully.");
-      setStatusType("success");
-      resetVehicleForm();
-      return;
-    }
-
-    const updatedVehicles = managedVehicles.map((vehicle) =>
-      vehicle.id === editingVehicleId ? cleanVehicle : vehicle,
-    );
-
-    saveVehicles(updatedVehicles);
-    setStatusMessage("Vehicle details updated successfully.");
-    setStatusType("success");
+    saveVehicles([newVehicle, ...managedVehicles]);
     resetVehicleForm();
+    showStatus("Vehicle added successfully.");
   };
 
-  // Loads a selected vehicle into the form for editing.
   const handleEditVehicle = (vehicle) => {
     setEditingVehicleId(vehicle.id);
     setVehicleForm({
-      id: vehicle.id,
       type: vehicle.type,
       plateNumber: vehicle.plateNumber,
-      capacityKg: vehicle.capacityKg.toString(),
+      capacityKg: vehicle.capacityKg,
       availability: vehicle.availability,
     });
-
-    setStatusMessage("Vehicle loaded for editing.");
-    setStatusType("success");
   };
 
-  // Deletes a vehicle from admin vehicle management.
   const handleDeleteVehicle = (vehicleId) => {
     const updatedVehicles = managedVehicles.filter(
       (vehicle) => vehicle.id !== vehicleId,
     );
 
     saveVehicles(updatedVehicles);
-
-    if (editingVehicleId === vehicleId) {
-      resetVehicleForm();
-    }
-
-    setStatusMessage("Vehicle deleted successfully.");
-    setStatusType("success");
+    showStatus("Vehicle deleted successfully.");
   };
 
-  // Updates a vehicle's availability directly from the admin table.
   const handleUpdateVehicleAvailability = (vehicleId, availability) => {
     const updatedVehicles = managedVehicles.map((vehicle) =>
       vehicle.id === vehicleId ? { ...vehicle, availability } : vehicle,
     );
 
     saveVehicles(updatedVehicles);
-    setStatusMessage("Vehicle availability updated successfully.");
-    setStatusType("success");
+    showStatus("Vehicle availability updated successfully.");
   };
+
+  if (!canAccessAdminArea) {
+    return (
+      <main className="px-6 py-8 text-slate-950">
+        <section className="mx-auto max-w-7xl">
+          <AdminAreaNotice
+            title="Scheduling Admin Access"
+            description="Login as an admin or manager before managing confirmed bookings and vehicle schedules."
+          />
+        </section>
+      </main>
+    );
+  }
+
+  const readyBookings = vehicleBookings.filter(
+    (booking) => !isBookingScheduled(getBookingId(booking)),
+  );
+
+  const availableVehicles = managedVehicles.filter(
+    (vehicle) => vehicle.availability === "available",
+  );
+
+  const summaryCards = [
+    {
+      label: "Vehicle Bookings",
+      value: vehicleBookings.length,
+      icon: ClipboardList,
+    },
+    {
+      label: "Confirmed Schedules",
+      value: confirmedSchedules.length,
+      icon: CalendarCheck,
+    },
+    {
+      label: "Ready to Schedule",
+      value: readyBookings.length,
+      icon: Truck,
+    },
+    {
+      label: "Available Vehicles",
+      value: availableVehicles.length,
+      icon: Wrench,
+    },
+  ];
 
   return (
     <main className="px-6 py-8 text-slate-950">
@@ -282,10 +365,10 @@ function SchedulingAdminPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
             Elvis Module
           </p>
-          <h2 className="mt-1 text-3xl font-bold">
+          <h1 className="mt-2 text-3xl font-bold">
             Scheduling and Admin Dashboard
-          </h2>
-          <p className="mt-1 text-slate-600">
+          </h1>
+          <p className="mt-2 text-slate-600">
             Schedule confirmed transport bookings, view scheduled requests, and
             manage vehicle availability.
           </p>
@@ -293,7 +376,7 @@ function SchedulingAdminPage() {
 
         {statusMessage && (
           <div
-            className={`mb-6 rounded-md px-4 py-3 text-sm font-medium ${
+            className={`mb-6 rounded-md px-4 py-3 text-sm font-semibold ${
               statusType === "success"
                 ? "bg-emerald-50 text-emerald-700"
                 : "bg-red-50 text-red-700"
@@ -303,427 +386,359 @@ function SchedulingAdminPage() {
           </div>
         )}
 
-        <section className="mb-8 grid gap-6 md:grid-cols-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Vehicle Bookings
-            </p>
-            <p className="mt-2 text-3xl font-bold">{vehicleBookings.length}</p>
-          </div>
+        <div className="mb-8 grid gap-4 md:grid-cols-4">
+          {summaryCards.map((card) => {
+            const Icon = card.icon;
 
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Confirmed Schedules
-            </p>
-            <p className="mt-2 text-3xl font-bold">
-              {confirmedSchedules.length}
-            </p>
-          </div>
+            return (
+              <div
+                key={card.label}
+                className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-600">{card.label}</p>
+                  <Icon className="text-blue-700" size={22} />
+                </div>
+                <p className="mt-4 text-3xl font-bold">{card.value}</p>
+              </div>
+            );
+          })}
+        </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Ready to Schedule
-            </p>
-            <p className="mt-2 text-3xl font-bold">
-              {
-                vehicleBookings.filter(
-                  (booking) => !isBookingScheduled(booking.id),
-                ).length
-              }
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-600">
-              Available Vehicles
-            </p>
-            <p className="mt-2 text-3xl font-bold">
-              {
-                managedVehicles.filter(
-                  (vehicle) => vehicle.availability === "available",
-                ).length
-              }
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h3 className="text-xl font-bold">
+        <section className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-5">
+            <h2 className="text-xl font-bold">
               Vehicle Bookings Ready for Scheduling
-            </h3>
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               These bookings come from Nathaniel's vehicle availability module.
             </p>
           </div>
 
-          {vehicleBookings.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-slate-700">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-5 py-4">Vehicle</th>
+                  <th className="px-5 py-4">Route</th>
+                  <th className="px-5 py-4">Package</th>
+                  <th className="px-5 py-4">Schedule</th>
+                  <th className="px-5 py-4">Trip</th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vehicleBookings.length === 0 && (
                   <tr>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Vehicle
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Route
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Package
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Schedule
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Trip
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Status
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Action
-                    </th>
+                    <td className="px-5 py-6 text-slate-600" colSpan="7">
+                      No vehicle bookings are ready yet.
+                    </td>
                   </tr>
-                </thead>
+                )}
 
-                <tbody>
-                  {vehicleBookings.map((booking) => {
-                    const alreadyScheduled = isBookingScheduled(booking.id);
+                {vehicleBookings.map((booking) => {
+                  const bookingId = getBookingId(booking);
+                  const bookingVehicle = getBookingVehicle(booking);
+                  const scheduled = isBookingScheduled(bookingId);
 
-                    return (
-                      <tr key={booking.id} className="hover:bg-slate-50">
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          <p className="font-semibold">{booking.vehicleType}</p>
-                          <p className="text-slate-600">
-                            {booking.plateNumber}
-                          </p>
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          {booking.pickupLocation} to {booking.destination}
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          {booking.packageType}, {booking.packageWeight} kg
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          {booking.pickupDate} at {booking.pickupTime}
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          {booking.distance} km, {booking.duration}
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                              alreadyScheduled ? "scheduled" : booking.status,
-                            )}`}
-                          >
-                            {alreadyScheduled ? "scheduled" : booking.status}
-                          </span>
-                        </td>
-                        <td className="border-b border-slate-100 px-6 py-4">
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmSchedule(booking)}
-                            disabled={alreadyScheduled}
-                            className="rounded-md bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                          >
-                            {alreadyScheduled
-                              ? "Scheduled"
-                              : "Confirm Schedule"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="p-6 text-slate-600">
-              No vehicle bookings are ready for scheduling yet.
-            </p>
-          )}
+                  return (
+                    <tr key={bookingId} className="border-t border-slate-100">
+                      <td className="px-5 py-4">
+                        <p className="font-semibold">{bookingVehicle.type}</p>
+                        <p className="text-slate-600">{bookingVehicle.plate}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        {booking.pickupLocation} to {booking.destination}
+                      </td>
+                      <td className="px-5 py-4">
+                        {booking.packageType}, {booking.weight} kg
+                      </td>
+                      <td className="px-5 py-4">
+                        {booking.pickupDate} at {booking.pickupTime}
+                      </td>
+                      <td className="px-5 py-4">
+                        {booking.distance ||
+                          booking.estimatedDistance ||
+                          "485 km"}
+                        ,{" "}
+                        {booking.duration ||
+                          booking.estimatedDuration ||
+                          "7h 20m"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                            scheduled ? "scheduled" : "pending",
+                          )}`}
+                        >
+                          {scheduled ? "scheduled" : "ready"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmSchedule(booking)}
+                          disabled={scheduled}
+                          className={`rounded-md px-4 py-2 text-xs font-semibold ${
+                            scheduled
+                              ? "bg-slate-200 text-slate-500"
+                              : "bg-blue-700 text-white hover:bg-blue-800"
+                          }`}
+                        >
+                          {scheduled ? "Scheduled" : "Schedule"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
 
-        <section className="mt-8 rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h3 className="text-xl font-bold">Confirmed Transport Schedules</h3>
+        <section className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-5">
+            <h2 className="text-xl font-bold">Confirmed Transport Schedules</h2>
             <p className="mt-1 text-sm text-slate-600">
               Admin view of transport requests that have been scheduled.
             </p>
           </div>
 
-          {confirmedSchedules.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-slate-700">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-5 py-4">Schedule ID</th>
+                  <th className="px-5 py-4">Route</th>
+                  <th className="px-5 py-4">Vehicle</th>
+                  <th className="px-5 py-4">Pickup</th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4">Update</th>
+                </tr>
+              </thead>
+              <tbody>
+                {confirmedSchedules.length === 0 && (
                   <tr>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Vehicle
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Route
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Package
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Schedule
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Trip
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Status
-                    </th>
-                    <th className="border-b border-slate-200 px-6 py-3">
-                      Manage
-                    </th>
+                    <td className="px-5 py-6 text-slate-600" colSpan="6">
+                      No confirmed schedules yet.
+                    </td>
                   </tr>
-                </thead>
+                )}
 
-                <tbody>
-                  {confirmedSchedules.map((schedule) => (
-                    <tr key={schedule.id} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        <p className="font-semibold">{schedule.vehicleType}</p>
-                        <p className="text-slate-600">{schedule.plateNumber}</p>
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {schedule.pickupLocation} to {schedule.destination}
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {schedule.packageType}, {schedule.packageWeight} kg
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {schedule.pickupDate} at {schedule.pickupTime}
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        {schedule.distance} km, {schedule.duration}
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                            schedule.status,
-                          )}`}
-                        >
-                          {schedule.status}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-100 px-6 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleUpdateScheduleStatus(
-                                schedule.id,
-                                "in-progress",
-                              )
-                            }
-                            disabled={
-                              schedule.status === "in-progress" ||
-                              schedule.status === "completed"
-                            }
-                            className="rounded-md border border-blue-700 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
-                          >
-                            Start
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleUpdateScheduleStatus(
-                                schedule.id,
-                                "completed",
-                              )
-                            }
-                            disabled={schedule.status === "completed"}
-                            className="rounded-md border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
-                          >
-                            Complete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="p-6 text-slate-600">
-              No confirmed schedules have been created yet.
-            </p>
-          )}
+                {confirmedSchedules.map((schedule) => (
+                  <tr key={schedule.id} className="border-t border-slate-100">
+                    <td className="px-5 py-4 font-semibold">{schedule.id}</td>
+                    <td className="px-5 py-4">
+                      {schedule.pickupLocation} to {schedule.destination}
+                    </td>
+                    <td className="px-5 py-4">
+                      {schedule.vehicleType} - {schedule.plateNumber}
+                    </td>
+                    <td className="px-5 py-4">
+                      {schedule.pickupDate} at {schedule.pickupTime}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                          schedule.status,
+                        )}`}
+                      >
+                        {schedule.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <select
+                        value={schedule.status}
+                        onChange={(event) =>
+                          handleUpdateScheduleStatus(
+                            schedule.id,
+                            event.target.value,
+                          )
+                        }
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
-        <section className="mt-8 rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h3 className="text-xl font-bold">Vehicle Management</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Admin can create, view, update, and delete vehicles.
-            </p>
-          </div>
-
+        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <form
             onSubmit={handleSubmitVehicle}
-            className="grid gap-4 border-b border-slate-200 p-6 lg:grid-cols-6"
+            className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
           >
-            <input
-              type="text"
-              name="id"
-              value={vehicleForm.id}
-              onChange={handleVehicleFormChange}
-              disabled={Boolean(editingVehicleId)}
-              placeholder="Vehicle ID"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700 disabled:bg-slate-100"
-            />
+            <h2 className="text-xl font-bold">Vehicle Management</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Add, edit, delete, and update vehicle availability.
+            </p>
 
-            <input
-              type="text"
-              name="type"
-              value={vehicleForm.type}
-              onChange={handleVehicleFormChange}
-              placeholder="Vehicle type"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700"
-            />
+            <div className="mt-5 grid gap-4">
+              <label className="text-sm font-semibold text-slate-700">
+                Vehicle Type
+                <input
+                  type="text"
+                  name="type"
+                  value={vehicleForm.type}
+                  onChange={handleVehicleFormChange}
+                  className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3"
+                  placeholder="Truck"
+                />
+              </label>
 
-            <input
-              type="text"
-              name="plateNumber"
-              value={vehicleForm.plateNumber}
-              onChange={handleVehicleFormChange}
-              placeholder="Plate number"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700"
-            />
+              <label className="text-sm font-semibold text-slate-700">
+                Plate Number
+                <input
+                  type="text"
+                  name="plateNumber"
+                  value={vehicleForm.plateNumber}
+                  onChange={handleVehicleFormChange}
+                  className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3"
+                  placeholder="KDA 102A"
+                />
+              </label>
 
-            <input
-              type="number"
-              name="capacityKg"
-              value={vehicleForm.capacityKg}
-              onChange={handleVehicleFormChange}
-              placeholder="Capacity kg"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700"
-            />
+              <label className="text-sm font-semibold text-slate-700">
+                Capacity (kg)
+                <input
+                  type="number"
+                  name="capacityKg"
+                  value={vehicleForm.capacityKg}
+                  onChange={handleVehicleFormChange}
+                  className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3"
+                  placeholder="5000"
+                />
+              </label>
 
-            <select
-              name="availability"
-              value={vehicleForm.availability}
-              onChange={handleVehicleFormChange}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700"
-            >
-              <option value="available">available</option>
-              <option value="booked">booked</option>
-              <option value="maintenance">maintenance</option>
-            </select>
+              <label className="text-sm font-semibold text-slate-700">
+                Availability
+                <select
+                  name="availability"
+                  value={vehicleForm.availability}
+                  onChange={handleVehicleFormChange}
+                  className="mt-2 w-full rounded-md border border-slate-300 px-4 py-3"
+                >
+                  <option value="available">Available</option>
+                  <option value="booked">Booked</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+              </label>
+            </div>
 
-            <div className="flex gap-2">
+            <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="submit"
-                className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-800"
               >
-                {editingVehicleId ? "Update" : "Add"}
+                <Plus size={18} />
+                {editingVehicleId ? "Update Vehicle" : "Add Vehicle"}
               </button>
 
               {editingVehicleId && (
                 <button
                   type="button"
                   onClick={resetVehicleForm}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  Cancel
+                  Cancel Edit
                 </button>
               )}
             </div>
           </form>
 
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Vehicle ID
-                  </th>
-                  <th className="border-b border-slate-200 px-6 py-3">Type</th>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Plate Number
-                  </th>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Capacity
-                  </th>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Availability
-                  </th>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Quick Update
-                  </th>
-                  <th className="border-b border-slate-200 px-6 py-3">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-xl font-bold">Admin Vehicle List</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Update the fleet used for scheduling and availability.
+              </p>
+            </div>
 
-              <tbody>
-                {managedVehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className="hover:bg-slate-50">
-                    <td className="border-b border-slate-100 px-6 py-4 font-semibold">
-                      {vehicle.id}
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      {vehicle.type}
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      {vehicle.plateNumber}
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      {vehicle.capacityKg.toLocaleString()} kg
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getAvailabilityClass(
-                          vehicle.availability,
-                        )}`}
-                      >
-                        {vehicle.availability}
-                      </span>
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      <select
-                        value={vehicle.availability}
-                        onChange={(event) =>
-                          handleUpdateVehicleAvailability(
-                            vehicle.id,
-                            event.target.value,
-                          )
-                        }
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-700"
-                      >
-                        <option value="available">available</option>
-                        <option value="booked">booked</option>
-                        <option value="maintenance">maintenance</option>
-                      </select>
-                    </td>
-                    <td className="border-b border-slate-100 px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditVehicle(vehicle)}
-                          className="rounded-md border border-blue-700 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteVehicle(vehicle.id)}
-                          className="rounded-md border border-red-700 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-700">
+                  <tr>
+                    <th className="px-5 py-4">Vehicle</th>
+                    <th className="px-5 py-4">Capacity</th>
+                    <th className="px-5 py-4">Availability</th>
+                    <th className="px-5 py-4">Quick Update</th>
+                    <th className="px-5 py-4">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {managedVehicles.map((vehicle) => (
+                    <tr key={vehicle.id} className="border-t border-slate-100">
+                      <td className="px-5 py-4">
+                        <p className="font-semibold">{vehicle.type}</p>
+                        <p className="text-slate-600">{vehicle.plateNumber}</p>
+                      </td>
+                      <td className="px-5 py-4">{vehicle.capacityKg} kg</td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getAvailabilityClass(
+                            vehicle.availability,
+                          )}`}
+                        >
+                          {vehicle.availability}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <select
+                          value={vehicle.availability}
+                          onChange={(event) =>
+                            handleUpdateVehicleAvailability(
+                              vehicle.id,
+                              event.target.value,
+                            )
+                          }
+                          className="rounded-md border border-slate-300 px-3 py-2"
+                        >
+                          <option value="available">Available</option>
+                          <option value="booked">Booked</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditVehicle(vehicle)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+                          >
+                            <Pencil size={14} />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVehicle(vehicle.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {managedVehicles.length === 0 && (
+                    <tr>
+                      <td className="px-5 py-6 text-slate-600" colSpan="5">
+                        No vehicles have been added yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </section>

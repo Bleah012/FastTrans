@@ -2,18 +2,22 @@ import { ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getAuthUser } from "../config/auth";
 
+export function hasAdminAccess() {
+  const authUser = getAuthUser();
+  return authUser?.role === "admin" || authUser?.role === "manager";
+}
+
 function AdminAreaNotice({
   title = "Protected Admin Area",
   description = "Login as an admin or manager before performing protected operations.",
 }) {
   const authUser = getAuthUser();
-  const hasAdminAccess =
-    authUser?.role === "admin" || authUser?.role === "manager";
+  const canAccess = hasAdminAccess();
 
   return (
     <section
       className={`mb-6 rounded-lg border p-4 shadow-sm ${
-        hasAdminAccess
+        canAccess
           ? "border-emerald-200 bg-emerald-50"
           : "border-amber-200 bg-amber-50"
       }`}
@@ -22,7 +26,7 @@ function AdminAreaNotice({
         <div className="flex gap-3">
           <div
             className={`flex h-11 w-11 items-center justify-center rounded-md ${
-              hasAdminAccess
+              canAccess
                 ? "bg-emerald-100 text-emerald-700"
                 : "bg-amber-100 text-amber-700"
             }`}
@@ -33,14 +37,14 @@ function AdminAreaNotice({
           <div>
             <h2 className="font-bold text-slate-950">{title}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              {hasAdminAccess
+              {canAccess
                 ? `Signed in as ${authUser.name} (${authUser.role}).`
                 : description}
             </p>
           </div>
         </div>
 
-        {!hasAdminAccess && (
+        {!canAccess && (
           <Link
             to="/login"
             className="w-fit rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"

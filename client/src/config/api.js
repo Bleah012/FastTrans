@@ -1,10 +1,11 @@
-export const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 export const API_ENDPOINTS = {
-  requests: `${API_BASE_URL}/requests`,
-  auth: {
-    register: `${API_BASE_URL}/auth/register`,
-    login: `${API_BASE_URL}/auth/login`,
-    me: `${API_BASE_URL}/auth/me`,
-  },
+  requests: `${API_BASE_URL}/api/requests`,
+  login: `${API_BASE_URL}/api/auth/login`,
+  register: `${API_BASE_URL}/api/auth/register`,
+  me: `${API_BASE_URL}/api/auth/me`,
 };
+
+export default API_BASE_URL;

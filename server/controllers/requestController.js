@@ -11,6 +11,9 @@ const createRequest = async (req, res) => {
       pickupDate,
       pickupTime,
       instructions,
+      client,
+      clientName,
+      clientEmail,
     } = req.body;
 
     if (
@@ -28,6 +31,9 @@ const createRequest = async (req, res) => {
     }
 
     const request = await Request.create({
+      client: req.user?._id || client,
+      clientName: req.user?.name || clientName,
+      clientEmail: req.user?.email || clientEmail,
       pickupLocation,
       destination,
       packageType,
@@ -54,7 +60,13 @@ const createRequest = async (req, res) => {
 // Gets all transport requests from MongoDB.
 const getRequests = async (req, res) => {
   try {
-    const requests = await Request.find().sort({ createdAt: -1 });
+    const query = {};
+
+    if (req.query.clientEmail) {
+      query.clientEmail = req.query.clientEmail.toLowerCase();
+    }
+
+    const requests = await Request.find(query).sort({ createdAt: -1 });
 
     return res.json({
       success: true,
@@ -70,7 +82,7 @@ const getRequests = async (req, res) => {
   }
 };
 
-// Gets one transport request by ID from MongoDB.
+// Gets one transport request from MongoDB.
 const getRequestById = async (req, res) => {
   try {
     const request = await Request.findById(req.params.id);

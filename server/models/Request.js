@@ -2,38 +2,52 @@ const mongoose = require("mongoose");
 
 const requestSchema = new mongoose.Schema(
   {
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+    clientName: {
+      type: String,
+      trim: true,
+    },
+    clientEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
     pickupLocation: {
       type: String,
-      required: true,
+      required: [true, "Pickup location is required."],
       trim: true,
     },
     destination: {
       type: String,
-      required: true,
+      required: [true, "Destination is required."],
       trim: true,
     },
     packageType: {
       type: String,
-      required: true,
+      required: [true, "Package type is required."],
       trim: true,
     },
     weight: {
       type: Number,
-      required: true,
-      min: 1,
+      required: [true, "Package weight is required."],
+      min: [1, "Weight must be greater than 0."],
     },
     pickupDate: {
       type: String,
-      required: true,
+      required: [true, "Pickup date is required."],
     },
     pickupTime: {
       type: String,
-      required: true,
+      required: [true, "Pickup time is required."],
     },
     instructions: {
       type: String,
-      default: "",
       trim: true,
+      default: "",
     },
     status: {
       type: String,
@@ -45,17 +59,12 @@ const requestSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      transform: (document, returnedObject) => {
+      transform: (doc, returnedObject) => {
         returnedObject.id = returnedObject._id.toString();
         return returnedObject;
       },
     },
-    toObject: {
-      virtuals: true,
-    },
   },
 );
 
-const Request = mongoose.model("Request", requestSchema);
-
-module.exports = Request;
+module.exports = mongoose.model("Request", requestSchema);
