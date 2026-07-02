@@ -6,13 +6,22 @@ const {
   updateRequestStatus,
   deleteRequest,
 } = require("../controllers/requestController");
+const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.get("/", getRequests);
-router.post("/", createRequest);
-router.get("/:id", getRequestById);
-router.patch("/:id/status", updateRequestStatus);
-router.delete("/:id", deleteRequest);
+router.route("/").post(createRequest).get(getRequests);
+
+router
+  .route("/:id")
+  .get(getRequestById)
+  .delete(protect, authorizeRoles("admin"), deleteRequest);
+
+router.patch(
+  "/:id/status",
+  protect,
+  authorizeRoles("admin", "manager"),
+  updateRequestStatus,
+);
 
 module.exports = router;
