@@ -5,6 +5,7 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 const requestRoutes = require("./routes/requestRoutes");
 const authRoutes = require("./routes/authRoutes");
+const availabilityRoutes = require("./routes/availabilityRoutes");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 
@@ -17,6 +18,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/availability", availabilityRoutes);
 
 app.get("/", (req, res) => {
   res.send("FastTrans server is running");
