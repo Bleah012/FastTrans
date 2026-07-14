@@ -13,7 +13,6 @@ import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 const bookingStorageKey = "fasttrans-vehicle-bookings";
 const scheduleStorageKey = "fasttrans-confirmed-schedules";
 const vehicleStorageKey = "fasttrans-admin-vehicles";
-const acceptedOfferStorageKey = "fasttrans-accepted-offers";
 
 const defaultVehicleForm = {
   type: "",
