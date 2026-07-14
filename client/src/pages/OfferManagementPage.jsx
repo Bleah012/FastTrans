@@ -13,8 +13,11 @@ import {
 } from "lucide-react";
 import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 import { API_ENDPOINTS } from "../config/api";
-
-const OFFERS_STORAGE_KEY = "fasttrans-generated-offers";
+import {
+  OFFERS_STORAGE_KEY,
+  buildOfferFromRequest,
+  readStorage,
+} from "../utils/offerManagement";
 
 const defaultOfferForm = {
   offerAmount: "",
@@ -25,15 +28,6 @@ const defaultOfferForm = {
   duration: "7h 20m",
   notes: "Offer includes standard pickup, transport, and delivery handling.",
 };
-
-function readStorage(key, fallbackValue) {
-  try {
-    const savedValue = localStorage.getItem(key);
-    return savedValue ? JSON.parse(savedValue) : fallbackValue;
-  } catch {
-    return fallbackValue;
-  }
-}
 
 function OfferManagementPage() {
   const [requests, setRequests] = useState([]);
@@ -152,30 +146,7 @@ function OfferManagementPage() {
       return;
     }
 
-    const newOffer = {
-      id: `OFFER-${Date.now()}`,
-      requestId: selectedRequest.id,
-      client: selectedRequest.client,
-      clientName: selectedRequest.clientName,
-      clientEmail: selectedRequest.clientEmail,
-      pickupLocation: selectedRequest.pickupLocation,
-      destination: selectedRequest.destination,
-      route: `${selectedRequest.pickupLocation} to ${selectedRequest.destination}`,
-      packageType: selectedRequest.packageType,
-      weight: selectedRequest.weight,
-      pickupDate: selectedRequest.pickupDate,
-      pickupTime: selectedRequest.pickupTime,
-      offerAmount: Number(offerForm.offerAmount),
-      serviceFee: Number(offerForm.serviceFee) || 0,
-      discount: Number(offerForm.discount) || 0,
-      vehicleType: offerForm.vehicleType,
-      distance: offerForm.distance,
-      duration: offerForm.duration,
-      notes: offerForm.notes,
-      status: "sent",
-      schedulingStatus: "waiting for client",
-      createdAt: new Date().toISOString(),
-    };
+    const newOffer = buildOfferFromRequest(selectedRequest, offerForm);
 
     saveOffers([newOffer, ...offers]);
     setOfferForm(defaultOfferForm);

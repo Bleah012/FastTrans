@@ -13,6 +13,7 @@ const defaultRouteData = {
 
 const bookingStorageKey = "fasttrans-vehicle-bookings";
 const offerStorageKey = "fasttrans-generated-offers";
+const acceptedOfferStorageKey = "fasttrans-accepted-offers";
 
 const knownRoutes = {
   "nairobi, kenya|mombasa, kenya": { distance: 485, duration: "7h 20m" },
@@ -79,11 +80,14 @@ function VehicleAvailabilityPage() {
     const savedBookings =
       JSON.parse(localStorage.getItem(bookingStorageKey)) || [];
     const savedOffers = JSON.parse(localStorage.getItem(offerStorageKey)) || [];
+    const savedAcceptedOffers =
+      JSON.parse(localStorage.getItem(acceptedOfferStorageKey)) || [];
 
-    const readyOffers = savedOffers.filter(
+    const readyOffers = [...savedAcceptedOffers, ...savedOffers].filter(
       (offer) =>
         offer.status === "accepted" ||
-        offer.schedulingStatus === "ready_for_scheduling",
+        offer.schedulingStatus === "ready_for_scheduling" ||
+        offer.schedulingStatus === "ready for scheduling",
     );
 
     setBookings(savedBookings);

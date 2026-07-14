@@ -14,18 +14,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { getAuthUser } from "../config/auth";
-
-const OFFERS_STORAGE_KEY = "fasttrans-generated-offers";
-const ACCEPTED_OFFERS_STORAGE_KEY = "fasttrans-accepted-offers";
-
-function readStorage(key, fallbackValue) {
-  try {
-    const savedValue = localStorage.getItem(key);
-    return savedValue ? JSON.parse(savedValue) : fallbackValue;
-  } catch {
-    return fallbackValue;
-  }
-}
+import {
+  ACCEPTED_OFFERS_STORAGE_KEY,
+  OFFERS_STORAGE_KEY,
+  applyOfferDecision,
+  getOfferStatus,
+  persistAcceptedOffer,
+  readStorage,
+} from "../utils/offerManagement";
 
 function OfferClientReviewPage() {
   const [offers, setOffers] = useState([]);
@@ -37,8 +33,6 @@ function OfferClientReviewPage() {
 
   const authUser = getAuthUser();
   const isAdmin = authUser?.role === "admin" || authUser?.role === "manager";
-
-  const getOfferStatus = (offer) => offer.status || "sent";
 
   const getOfferAmount = (offer) =>
     Number(offer.offerAmount || offer.amount || offer.totalAmount || 0);
@@ -144,23 +138,7 @@ function OfferClientReviewPage() {
 
   const saveAcceptedOfferForAvailability = (offer) => {
     const acceptedOffers = readStorage(ACCEPTED_OFFERS_STORAGE_KEY, []);
-
-    const availabilityOffer = {
-      ...offer,
-      offerId: offer.id || offer.offerId,
-      status: "accepted",
-      schedulingStatus: "ready for scheduling",
-      acceptedAt: new Date().toISOString(),
-    };
-
-    const nextAcceptedOffers = [
-      availabilityOffer,
-      ...acceptedOffers.filter(
-        (savedOffer) =>
-          savedOffer.id !== availabilityOffer.id &&
-          savedOffer.offerId !== availabilityOffer.offerId,
-      ),
-    ];
+    const nextAcceptedOffers = persistAcceptedOffer(offer, acceptedOffers);
 
     localStorage.setItem(
       ACCEPTED_OFFERS_STORAGE_KEY,
@@ -183,22 +161,18 @@ function OfferClientReviewPage() {
       return;
     }
 
-    const updatedOffer = {
-      ...selected,
-      status,
-      schedulingStatus:
-        status === "accepted" ? "ready for scheduling" : "not scheduled",
-      respondedAt: new Date().toISOString(),
-    };
+    const { updatedOffer, nextOffers, shouldPersistAcceptedOffer } =
+      applyOfferDecision(offers, offerId, status);
 
-    const nextOffers = offers.map((offer) =>
-      offer.id === offerId || offer.offerId === offerId ? updatedOffer : offer,
-    );
+    if (!updatedOffer) {
+      showStatus("Offer not found.", "error");
+      return;
+    }
 
     saveOffers(nextOffers);
     setSelectedOffer(updatedOffer);
 
-    if (status === "accepted") {
+    if (shouldPersistAcceptedOffer) {
       saveAcceptedOfferForAvailability(updatedOffer);
       showStatus("Offer accepted and marked ready for availability check.");
       return;

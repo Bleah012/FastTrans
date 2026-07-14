@@ -13,6 +13,7 @@ import AdminAreaNotice, { hasAdminAccess } from "../components/AdminAreaNotice";
 const bookingStorageKey = "fasttrans-vehicle-bookings";
 const scheduleStorageKey = "fasttrans-confirmed-schedules";
 const vehicleStorageKey = "fasttrans-admin-vehicles";
+const acceptedOfferStorageKey = "fasttrans-accepted-offers";
 
 const defaultVehicleForm = {
   type: "",
@@ -169,6 +170,7 @@ function SchedulingAdminPage() {
     const schedule = {
       id: `SCHEDULE-${Date.now()}`,
       bookingId,
+      sourceOfferId: booking.sourceOfferId || booking.offerId || "",
       vehicleType: bookingVehicle.type,
       plateNumber: bookingVehicle.plate,
       pickupLocation: booking.pickupLocation,
